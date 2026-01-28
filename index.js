@@ -56,9 +56,18 @@ bot.on("text", async (ctx) => {
 });
 
 // --- WEBHOOK endpoint (Telegram chiamerà questo URL)
-app.post(`/${WEBHOOK_SECRET_PATH}`, (req, res) => {
-    bot.handleUpdate(req.body, res);
+// --- WEBHOOK endpoint (Telegram chiamerà questo URL)
+app.post(`/${WEBHOOK_SECRET_PATH}`, async (req, res) => {
+    try {
+        console.log("Webhook hit:", req.body?.update_id, req.body?.message?.text);
+        await bot.handleUpdate(req.body);
+        res.sendStatus(200);
+    } catch (e) {
+        console.error("Webhook error:", e);
+        res.sendStatus(500);
+    }
 });
+
 
 // --- API: ricevi un evento dall’ESP32 (quando sarà pronto)
 app.post("/events", async (req, res) => {

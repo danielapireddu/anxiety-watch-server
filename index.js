@@ -37,8 +37,9 @@ bot.command("test", async (ctx) => {
 
 // Salva qualunque messaggio testo come risposta “test”
 bot.on("text", async (ctx) => {
-    const tgId = ctx.from.id;
-    const answer = ctx.message.text;
+    const text = ctx.message?.text || "";
+    if (text.startsWith("/")) return;  // ignora i comandi tipo /start
+
 
     // Qui, per ora, non leghiamo a un event_id reale
     await pool.query(

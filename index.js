@@ -1,4 +1,4 @@
-const express = require("express");
+ï»¿const express = require("express");
 const { Telegraf } = require("telegraf");
 const { Pool } = require("pg");
 
@@ -22,17 +22,12 @@ const bot = new Telegraf(BOT_TOKEN);
 
 // --- BOT: /start registra utente
 bot.start(async (ctx) => {
-    const tgId = ctx.from.id;
-    const username = ctx.from.username || null;
-
-    await pool.query(
-        `insert into telegram_users (telegram_user_id, username)
-     values ($1, $2)
-     on conflict (telegram_user_id) do update set username = excluded.username`,
-        [tgId, username]
+    await ctx.reply(
+        "Ciao! ðŸ‘‹\n\n" +
+        "Sono il bot del Questionario Ansia.\n" +
+        "Ti farÃ² alcune domande quando verrÃ  rilevato un evento.\n\n" +
+        "Per ora sei correttamente collegata âœ…"
     );
-
-    await ctx.reply("Ciao! Bot pronto. Quando il braccialetto registra un episodio, ti farò delle domande.");
 });
 
 // --- BOT: /test avvia un mini questionario finto
@@ -40,7 +35,7 @@ bot.command("test", async (ctx) => {
     await ctx.reply("Questionario test: come ti senti adesso? (rispondi con una parola)");
 });
 
-// Salva qualunque messaggio testo come risposta “test”
+// Salva qualunque messaggio testo come risposta â€œtestâ€
 bot.on("text", async (ctx) => {
     const tgId = ctx.from.id;
     const answer = ctx.message.text;
@@ -55,8 +50,8 @@ bot.on("text", async (ctx) => {
     await ctx.reply("Risposta salvata. Grazie!");
 });
 
-// --- WEBHOOK endpoint (Telegram chiamerà questo URL)
-// --- WEBHOOK endpoint (Telegram chiamerà questo URL)
+// --- WEBHOOK endpoint (Telegram chiamerÃ  questo URL)
+// --- WEBHOOK endpoint (Telegram chiamerÃ  questo URL)
 app.post(`/${WEBHOOK_SECRET_PATH}`, async (req, res) => {
     try {
         console.log("Webhook hit:", req.body?.update_id, req.body?.message?.text);
@@ -69,7 +64,7 @@ app.post(`/${WEBHOOK_SECRET_PATH}`, async (req, res) => {
 });
 
 
-// --- API: ricevi un evento dall’ESP32 (quando sarà pronto)
+// --- API: ricevi un evento dallâ€™ESP32 (quando sarÃ  pronto)
 app.post("/events", async (req, res) => {
     const { device_id, event_type, payload } = req.body;
 

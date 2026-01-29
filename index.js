@@ -34,25 +34,26 @@ const userState = new Map();
 bot.command("questionario", async (ctx) => {
     const telegramUserId = String(ctx.from?.id);
 
-    // 1️⃣ Crea un evento fittizio di tipo "manual_test"
-    const result = await pool.query(
-        `insert into events (device_id, event_type, payload)
-     values ($1, $2, $3)
-     returning id`,
-        [
-            "manual",
-            "manual_questionnaire",
-            { source: "telegram", note: "questionario manuale" }
-        ]
-    );
+    try {
+        const result = await pool.query(
+            `insert into events (device_id, event_type, payload)
+       values ($1, $2, $3)
+       returning id`,
+            ["manual", "manual_questionnaire", { source: "telegram", note: "questionario manuale" }]
+        );
 
-    const eventId = result.rows[0].id;
+        const eventId = result.rows[0].id;
+        userState.set(telegramUserId, { step: 0, event_id: eventId });
 
-    // 2️⃣ Salva lo stato con event_id VALIDO
-    userState.set(telegramUserId, { step: 0, event_id: eventId });
-
-    await ctx.reply("Ok, iniziamo il questionario.");
-    await ctx.reply(QUESTIONS[0].text);
+        await ctx.reply("Ok, iniziamo il questionario.");
+        await ctx.reply(QUESTIONS[0].text);
+    } catch (e) {
+        console.error("EVENT INSERT error message:", e?.message);
+        console.error("EVENT INSERT error code:", e?.code);
+        console.error("EVENT INSERT error detail:", e?.detail);
+        console.error("EVENT INSERT error full:", e);
+        await ctx.reply("Errore: non riesco a creare l'evento nel database.");
+    }
 });
 
 
@@ -106,11 +107,13 @@ bot.on("text", async (ctx) => {
         userState.set(telegramUserId, state);
         await ctx.reply(QUESTIONS[state.step].text);
     } catch (e) {
-        console.error("DB save error:", e?.message);
-        console.error("DB save details:", e);
-
+        console.error("DB save error message:", e?.message);
+        console.error("DB save error code:", e?.code);
+        console.error("DB save error detail:", e?.detail);
+        console.error("DB save error full:", e);
         await ctx.reply("Errore nel salvataggio. Riprova a inviare la risposta.");
     }
+
 });
 
 
@@ -149,6 +152,18 @@ app.post("/events", async (req, res) => {
 
 // health check
 app.get("/", (req, res) => res.send("OK"));
+app.get("/db-test", async (req, res) => {
+    try {
+        const r = await pool.query("select now() as now");
+        res.json({ ok: true, now: r.rows[0].now });
+    } catch (e) {
+        console.error("DB TEST error message:", e?.message);
+        console.error("DB TEST error code:", e?.code);
+        console.error("DB TEST error detail:", e?.detail);
+        res.status(500).json({ ok: false, error: e?.message, code: e?.code });
+    }
+});
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {

@@ -67,16 +67,11 @@ bot.on("text", async (ctx) => {
 
     try {
         await pool.query(
-            `insert into responses (event_id, telegram_user_id, question_id, answer, meta)
-       values ($1, $2, $3, $4, $5)`,
-            [
-                state.event_id,          // per ora null
-                telegramUserId,
-                q.id,
-                text,
-                null                     // per ora meta null (poi ci metteremo HR/IMU)
-            ]
+            `insert into responses (telegram_user_id, question_id, answer)
+   values ($1, $2, $3)`,
+            [telegramUserId, q.id, text]
         );
+
 
         state.step += 1;
 
@@ -89,7 +84,9 @@ bot.on("text", async (ctx) => {
         userState.set(telegramUserId, state);
         await ctx.reply(QUESTIONS[state.step].text);
     } catch (e) {
-        console.error("DB save error:", e);
+        console.error("DB save error:", e?.message);
+        console.error("DB save details:", e);
+
         await ctx.reply("Errore nel salvataggio. Riprova a inviare la risposta.");
     }
 });

@@ -34,12 +34,27 @@ const userState = new Map();
 bot.command("questionario", async (ctx) => {
     const telegramUserId = String(ctx.from?.id);
 
-    // Per ora non abbiamo un vero event_id (lo collegheremo nella fase ESP32)
-    userState.set(telegramUserId, { step: 0, event_id: null });
+    // 1️⃣ Crea un evento fittizio di tipo "manual_test"
+    const result = await pool.query(
+        `insert into events (device_id, event_type, payload)
+     values ($1, $2, $3)
+     returning id`,
+        [
+            "manual",
+            "manual_questionnaire",
+            { source: "telegram", note: "questionario manuale" }
+        ]
+    );
+
+    const eventId = result.rows[0].id;
+
+    // 2️⃣ Salva lo stato con event_id VALIDO
+    userState.set(telegramUserId, { step: 0, event_id: eventId });
 
     await ctx.reply("Ok, iniziamo il questionario.");
     await ctx.reply(QUESTIONS[0].text);
 });
+
 
 // --- BOT: /start registra utente
 bot.start(async (ctx) => {
@@ -67,10 +82,17 @@ bot.on("text", async (ctx) => {
 
     try {
         await pool.query(
-            `insert into responses (telegram_user_id, question_id, answer)
-   values ($1, $2, $3)`,
-            [telegramUserId, q.id, text]
+            `insert into responses (event_id, telegram_user_id, question_id, answer, meta)
+   values ($1, $2, $3, $4, $5)`,
+            [
+                state.event_id,
+                telegramUserId,
+                q.id,
+                text,
+                null
+            ]
         );
+
 
 
         state.step += 1;

@@ -22,9 +22,14 @@ const bot = new Telegraf(BOT_TOKEN);
 
 // --- Questionario: domande in sequenza
 const QUESTIONS = [
-    { id: "q1_trigger", text: "Cosa stavi facendo quando è iniziata l’ansia?" },
-    { id: "q2_intensity", text: "Quanto era intensa (0-10)?" },
-    { id: "q3_duration", text: "Quanto è durata circa (minuti)?" },
+    { id: "q1_dover", text: "Dove ti trovavi durante l'episodio?" },
+    { id: "q2_input", text: "Cosa stavi facendo quando è iniziata l’ansia?" },
+    { id: "q3_compagnia", text: "Eri solo?" },
+    { id: "q4_sintomi", text: "Hai riconsociuto dei sintomi specifici?" },
+    { id: "q5_soluzione", text: "Come ti è passato?" },
+    { id: "q6_causa", text: "Sai cosa potrebbe averlo scatenato?" },
+    { id: "q7_durata", text: "Quanto è durato (in minuti)?" },
+    { id: "q8_intensita", text: "Quanta è stata la sua intensità da 1 a 10?" },
 ];
 
 // Stato in memoria per utente: a che domanda è arrivato + event_id collegato

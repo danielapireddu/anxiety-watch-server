@@ -32,9 +32,27 @@ const userState = new Map();
 // telegramUserId -> { step: number, event_id: string|null }
 
 bot.command("questionario", async (ctx) => {
-    const telegramUserId = String(ctx.from?.id);
+    // 0) sicurezza: ctx.from deve esistere
+    if (!ctx.from?.id) {
+        await ctx.reply("Non riesco a riconoscere l’utente. Prova a scrivere /start e poi /questionario.");
+        return;
+    }
+
+    const telegramUserId = String(ctx.from.id);
+    const username = ctx.from.username ? String(ctx.from.username) : null;
 
     try {
+        // 1) registra (o aggiorna) l’utente in telegram_users
+        // così non dipendiamo da /start per “inizializzare”
+        await pool.query(
+            `insert into telegram_users (telegram_user_id, username)
+       values ($1, $2)
+       on conflict (telegram_user_id)
+       do update set username = excluded.username`,
+            [telegramUserId, username]
+        );
+
+        // 2) crea un evento fittizio (manual test)
         const result = await pool.query(
             `insert into events (device_id, event_type, payload)
        values ($1, $2, $3)
@@ -43,29 +61,52 @@ bot.command("questionario", async (ctx) => {
         );
 
         const eventId = result.rows[0].id;
+
+        // 3) inizializza lo stato del questionario
         userState.set(telegramUserId, { step: 0, event_id: eventId });
 
+        // 4) invia prima istruzione + prima domanda
         await ctx.reply("Ok, iniziamo il questionario.");
         await ctx.reply(QUESTIONS[0].text);
+
     } catch (e) {
-        console.error("EVENT INSERT error message:", e?.message);
-        console.error("EVENT INSERT error code:", e?.code);
-        console.error("EVENT INSERT error detail:", e?.detail);
-        console.error("EVENT INSERT error full:", e);
-        await ctx.reply("Errore: non riesco a creare l'evento nel database.");
+        console.error("QUESTIONARIO error message:", e?.message);
+        console.error("QUESTIONARIO error code:", e?.code);
+        console.error("QUESTIONARIO error detail:", e?.detail);
+        console.error("QUESTIONARIO error full:", e);
+
+        await ctx.reply("Errore tecnico: non riesco a iniziare il questionario. Riprova tra poco.");
     }
 });
 
 
+
 // --- BOT: /start registra utente
 bot.start(async (ctx) => {
-    await ctx.reply(
-        "Ciao! 👋\n\n" +
-        "Sono il bot del Questionario Ansia.\n" +
-        "Ti farò alcune domande quando verrà rilevato un evento.\n\n" +
-        "Per ora sei correttamente collegata ✅"
-    );
+    const telegramUserId = ctx.from.id; // number va bene
+    const username = ctx.from.username || null;
+
+    try {
+        await pool.query(
+            `insert into telegram_users (telegram_user_id, username)
+       values ($1, $2)
+       on conflict (telegram_user_id)
+       do update set username = excluded.username`,
+            [telegramUserId, username]
+        );
+
+        await ctx.reply(
+            "Ciao! 👋\n\n" +
+            "Sono il bot del Questionario Ansia.\n" +
+            "Ti farò alcune domande quando verrà rilevato un evento.\n\n" +
+            "Sei correttamente collegata ✅"
+        );
+    } catch (e) {
+        console.error("START error:", e);
+        await ctx.reply("Errore tecnico durante la registrazione.");
+    }
 });
+
 
 // Salva qualunque messaggio testo come risposta “test”
 bot.on("text", async (ctx) => {
@@ -77,7 +118,11 @@ bot.on("text", async (ctx) => {
 
     // Se l’utente non è in questionario, non fare nulla
     const state = userState.get(telegramUserId);
-    if (!state) return;
+    if (!state) {
+        await ctx.reply("Scrivi /questionario per iniziare.");
+        return;
+    }
+
 
     const q = QUESTIONS[state.step];
 

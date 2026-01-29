@@ -20,6 +20,27 @@ const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorize
 
 const bot = new Telegraf(BOT_TOKEN);
 
+// --- Questionario: domande in sequenza
+const QUESTIONS = [
+    { id: "q1_trigger", text: "Cosa stavi facendo quando è iniziata l’ansia?" },
+    { id: "q2_intensity", text: "Quanto era intensa (0-10)?" },
+    { id: "q3_duration", text: "Quanto è durata circa (minuti)?" },
+];
+
+// Stato in memoria per utente: a che domanda è arrivato + event_id collegato
+const userState = new Map();
+// telegramUserId -> { step: number, event_id: string|null }
+
+bot.command("questionario", async (ctx) => {
+    const telegramUserId = String(ctx.from?.id);
+
+    // Per ora non abbiamo un vero event_id (lo collegheremo nella fase ESP32)
+    userState.set(telegramUserId, { step: 0, event_id: null });
+
+    await ctx.reply("Ok, iniziamo il questionario.");
+    await ctx.reply(QUESTIONS[0].text);
+});
+
 // --- BOT: /start registra utente
 bot.start(async (ctx) => {
     await ctx.reply(
@@ -30,26 +51,49 @@ bot.start(async (ctx) => {
     );
 });
 
-// --- BOT: /test avvia un mini questionario finto
-bot.command("test", async (ctx) => {
-    await ctx.reply("Questionario test: come ti senti adesso? (rispondi con una parola)");
-});
-
 // Salva qualunque messaggio testo come risposta “test”
 bot.on("text", async (ctx) => {
+    const telegramUserId = String(ctx.from?.id);
     const text = ctx.message?.text || "";
-    if (text.startsWith("/")) return;  // ignora i comandi tipo /start
 
+    // Ignora i comandi (/start, /questionario, ecc.)
+    if (text.startsWith("/")) return;
 
-    // Qui, per ora, non leghiamo a un event_id reale
-    await pool.query(
-        `insert into responses (event_id, telegram_user_id, question_id, answer)
-     values (null, $1, $2, $3)`,
-        [tgId, "free_text_test", answer]
-    );
+    // Se l’utente non è in questionario, non fare nulla
+    const state = userState.get(telegramUserId);
+    if (!state) return;
 
-    await ctx.reply("Risposta salvata. Grazie!");
+    const q = QUESTIONS[state.step];
+
+    try {
+        await pool.query(
+            `insert into responses (event_id, telegram_user_id, question_id, answer, meta)
+       values ($1, $2, $3, $4, $5)`,
+            [
+                state.event_id,          // per ora null
+                telegramUserId,
+                q.id,
+                text,
+                null                     // per ora meta null (poi ci metteremo HR/IMU)
+            ]
+        );
+
+        state.step += 1;
+
+        if (state.step >= QUESTIONS.length) {
+            userState.delete(telegramUserId);
+            await ctx.reply("Grazie. Questionario completato ✅");
+            return;
+        }
+
+        userState.set(telegramUserId, state);
+        await ctx.reply(QUESTIONS[state.step].text);
+    } catch (e) {
+        console.error("DB save error:", e);
+        await ctx.reply("Errore nel salvataggio. Riprova a inviare la risposta.");
+    }
 });
+
 
 // --- WEBHOOK endpoint (Telegram chiamerà questo URL)
 // --- WEBHOOK endpoint (Telegram chiamerà questo URL)

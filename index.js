@@ -58,12 +58,9 @@ bot.command("questionario", async (ctx) => {
         );
 
         // 2) crea un evento fittizio (manual test)
-        const result = await pool.query(
-            `insert into events (device_id, event_type, payload)
-       values ($1, $2, $3)
-       returning id`,
-            ["manual", "manual_questionnaire", { source: "telegram", note: "questionario manuale" }]
-        );
+        node - v
+        npm - v
+
 
         const eventId = result.rows[0].id;
 

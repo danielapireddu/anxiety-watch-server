@@ -19,6 +19,8 @@ if (!PUBLIC_URL) throw new Error("Missing PUBLIC_URL");
 const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
 const bot = new Telegraf(BOT_TOKEN);
+console.log("VERSIONE CODICE:", new Date().toISOString(), "commit marker: V2-no-node");
+
 
 // --- Questionario: domande in sequenza
 const QUESTIONS = [

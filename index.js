@@ -37,18 +37,16 @@ const userState = new Map();
 // telegramUserId -> { step: number, event_id: string|null }
 
 bot.command("questionario", async (ctx) => {
-    // 0) sicurezza: ctx.from deve esistere
     if (!ctx.from?.id) {
         await ctx.reply("Non riesco a riconoscere l’utente. Prova a scrivere /start e poi /questionario.");
         return;
     }
 
-    const telegramUserId = String(ctx.from.id);
+    const telegramUserId = Number(ctx.from.id);
     const username = ctx.from.username ? String(ctx.from.username) : null;
 
     try {
-        // 1) registra (o aggiorna) l’utente in telegram_users
-        // così non dipendiamo da /start per “inizializzare”
+        // 1) registra/aggiorna utente
         await pool.query(
             `insert into telegram_users (telegram_user_id, username)
        values ($1, $2)
@@ -57,17 +55,20 @@ bot.command("questionario", async (ctx) => {
             [telegramUserId, username]
         );
 
-        // 2) crea un evento fittizio (manual test)
-        node - v
-        npm - v
-
+        // 2) crea evento manuale collegato all’utente
+        const result = await pool.query(
+            `insert into events (device_id, event_type, payload, telegram_user_id)
+       values ($1, $2, $3, $4)
+       returning id`,
+            ["manual", "manual_questionnaire", { source: "telegram", note: "questionario manuale" }, telegramUserId]
+        );
 
         const eventId = result.rows[0].id;
 
         // 3) inizializza lo stato del questionario
-        userState.set(telegramUserId, { step: 0, event_id: eventId });
+        userState.set(String(telegramUserId), { step: 0, event_id: eventId });
 
-        // 4) invia prima istruzione + prima domanda
+        // 4) invia prima domanda
         await ctx.reply("Ok, iniziamo il questionario.");
         await ctx.reply(QUESTIONS[0].text);
 
@@ -83,9 +84,11 @@ bot.command("questionario", async (ctx) => {
 
 
 
+
 // --- BOT: /start registra utente
 bot.start(async (ctx) => {
-    const telegramUserId = ctx.from.id; // number va bene
+    const telegramUserId = Number(ctx.from.id);
+ // number va bene
     const username = ctx.from.username || null;
 
     try {

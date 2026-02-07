@@ -115,6 +115,37 @@ bot.start(async (ctx) => {
 });
 
 
+function generateCode6() {
+    return String(Math.floor(100000 + Math.random() * 900000)); // 6 cifre
+}
+
+bot.command("login", async (ctx) => {
+    if (!ctx.from?.id) return;
+
+    const telegramUserId = Number(ctx.from.id);
+
+    try {
+        // genera codice + scadenza 10 minuti
+        const code = generateCode6();
+        const result = await pool.query(
+            `insert into login_codes (telegram_user_id, code, expires_at)
+       values ($1, $2, now() + interval '10 minutes')
+       returning code, expires_at`,
+            [telegramUserId, code]
+        );
+
+        await ctx.reply(
+            "Codice di accesso (valido 10 minuti):\n\n" +
+            result.rows[0].code +
+            "\n\nApri il sito e inseriscilo nella pagina /login."
+        );
+    } catch (e) {
+        console.error("LOGIN CODE error:", e);
+        await ctx.reply("Errore: non riesco a generare il codice. Riprova tra poco.");
+    }
+});
+
+
 // Salva qualunque messaggio testo come risposta “test”
 bot.on("text", async (ctx) => {
     const telegramUserId = String(ctx.from?.id);

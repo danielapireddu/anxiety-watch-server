@@ -1,6 +1,10 @@
 ﻿const express = require("express");
 const { Telegraf } = require("telegraf");
 const { Pool } = require("pg");
+const jwt = require("jsonwebtoken");
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
+
 
 const app = express();
 app.use(express.json());
@@ -114,6 +118,45 @@ bot.start(async (ctx) => {
     }
 });
 
+function genCode() {
+  return String(Math.floor(100000 + Math.random() * 900000)); // 6 cifre
+}
+
+bot.command("login", async (ctx) => {
+  const telegramUserId = Number(ctx.from?.id);
+  if (!telegramUserId) return;
+
+  const code = genCode();
+  const expiresMinutes = 10;
+
+  try {
+    // assicura utente in telegram_users
+    await pool.query(
+      `insert into telegram_users (telegram_user_id, username)
+       values ($1, $2)
+       on conflict (telegram_user_id)
+       do update set username = excluded.username`,
+      [telegramUserId, ctx.from.username || null]
+    );
+
+    // salva codice (valido 10 minuti)
+    await pool.query(
+      `insert into login_codes (telegram_user_id, code, expires_at)
+       values ($1, $2, now() + ($3 || ' minutes')::interval)`,
+      [telegramUserId, code, String(expiresMinutes)]
+    );
+
+    await ctx.reply(
+      `Ecco il tuo codice di login: ${code}\n` +
+      `Valido per ${expiresMinutes} minuti.\n` +
+      `Ora vai sul sito e inseriscilo.`
+    );
+  } catch (e) {
+    console.error("LOGIN command error:", e);
+    await ctx.reply("Errore tecnico: non riesco a generare il codice. Riprova tra poco.");
+  }
+});
+
 
 function generateCode6() {
     return String(Math.floor(100000 + Math.random() * 900000)); // 6 cifre
@@ -213,6 +256,51 @@ app.post(`/${WEBHOOK_SECRET_PATH}`, async (req, res) => {
     }
 });
 
+app.post("/auth/code", async (req, res) => {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ ok: false, error: "Missing code" });
+
+    try {
+        const r = await pool.query(
+            `select id, telegram_user_id, expires_at, used_at
+       from login_codes
+       where code = $1
+       order by expires_at desc
+       limit 1`,
+            [String(code)]
+        );
+
+        if (r.rowCount === 0) {
+            return res.status(401).json({ ok: false, error: "Invalid code" });
+        }
+
+        const row = r.rows[0];
+
+        if (row.used_at) {
+            return res.status(401).json({ ok: false, error: "Code already used" });
+        }
+
+        if (new Date(row.expires_at) < new Date()) {
+            return res.status(401).json({ ok: false, error: "Code expired" });
+        }
+
+        // segna come usato
+        await pool.query(`update login_codes set used_at = now() where id = $1`, [row.id]);
+
+        // crea token
+        const token = jwt.sign(
+            { telegram_user_id: row.telegram_user_id },
+            JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        res.json({ ok: true, token });
+    } catch (e) {
+        console.error("AUTH CODE error:", e);
+        res.status(500).json({ ok: false, error: "Server error" });
+    }
+});
+
 
 // --- API: ricevi un evento dall’ESP32 (quando sarà pronto)
 app.post("/events", async (req, res) => {
@@ -247,6 +335,48 @@ app.get("/db-test", async (req, res) => {
     }
 });
 
+app.post("/login", async (req, res) => {
+  try {
+    const { code } = req.body || {};
+    if (!code || typeof code !== "string") {
+      return res.status(400).json({ ok: false, error: "Missing code" });
+    }
+
+    const r = await pool.query(
+      `select id, telegram_user_id, expires_at, used_at
+       from login_codes
+       where code = $1
+       order by created_at desc
+       limit 1`,
+      [code.trim()]
+    );
+
+    if (r.rowCount === 0) {
+      return res.status(401).json({ ok: false, error: "Invalid code" });
+    }
+
+    const row = r.rows[0];
+
+    if (row.used_at) {
+      return res.status(401).json({ ok: false, error: "Code already used" });
+    }
+
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      return res.status(401).json({ ok: false, error: "Code expired" });
+    }
+
+    // segna come usato
+    await pool.query(`update login_codes set used_at = now() where id = $1`, [row.id]);
+
+    // per ora restituiamo solo telegram_user_id
+    // (poi lo trasformeremo in sessione/token)
+    return res.json({ ok: true, telegram_user_id: row.telegram_user_id });
+  } catch (e) {
+    console.error("POST /login error:", e);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
@@ -256,3 +386,58 @@ app.listen(PORT, async () => {
     console.log("Server listening on port", PORT);
     console.log("Webhook set to:", webhookUrl);
 });
+
+function requireAuth(req, res, next) {
+    const h = req.headers.authorization || "";
+    const m = h.match(/^Bearer (.+)$/);
+    if (!m) return res.status(401).json({ ok: false, error: "Missing token" });
+
+    try {
+        const payload = jwt.verify(m[1], JWT_SECRET);
+        req.user = payload; // { telegram_user_id: ... }
+        next();
+    } catch (e) {
+        return res.status(401).json({ ok: false, error: "Invalid token" });
+    }
+}
+
+app.get("/my-events", requireAuth, async (req, res) => {
+    const telegramUserId = req.user.telegram_user_id;
+
+    const r = await pool.query(
+        `select id, created_at, event_type, device_id, payload
+     from events
+     where telegram_user_id = $1
+     order by created_at desc
+     limit 200`,
+        [telegramUserId]
+    );
+
+    res.json({ ok: true, events: r.rows });
+});
+
+app.get("/events/:id", requireAuth, async (req, res) => {
+    const telegramUserId = req.user.telegram_user_id;
+    const eventId = req.params.id;
+
+    // evento deve appartenere all'utente
+    const ev = await pool.query(
+        `select id, created_at, event_type, device_id, payload
+     from events
+     where id = $1 and telegram_user_id = $2`,
+        [eventId, telegramUserId]
+    );
+
+    if (ev.rowCount === 0) return res.status(404).json({ ok: false, error: "Not found" });
+
+    const ans = await pool.query(
+        `select id, question_id, answer, created_at, meta
+     from responses
+     where event_id = $1 and telegram_user_id = $2
+     order by created_at asc`,
+        [eventId, telegramUserId]
+    );
+
+    res.json({ ok: true, event: ev.rows[0], responses: ans.rows });
+});
+

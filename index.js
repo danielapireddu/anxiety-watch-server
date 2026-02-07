@@ -386,6 +386,86 @@ app.post("/login", async (req, res) => {
   }
 });
 
+// ================================
+// AUTH: leggi telegram_user_id dalla sessione
+// ================================
+// NOTE: qui sotto assumo che tu stia mettendo il telegram_user_id in un header o cookie.
+// Per ora facciamo una versione "debug" via querystring, così sblocchiamo subito il sito.
+// Poi lo rendiamo sicuro con sessione vera.
+
+function requireUser(req, res, next) {
+  // DEBUG TEMPORANEO: ?uid=1065093935
+  const uid = req.query.uid ? Number(req.query.uid) : null;
+
+  if (!uid) {
+    return res.status(401).json({ ok: false, error: "Missing user. Add ?uid=YOUR_TELEGRAM_ID (temporary)." });
+  }
+
+  req.telegramUserId = uid;
+  next();
+}
+
+// ================================
+// API: lista eventi dell'utente
+// GET /api/my/events?uid=1065093935
+// ================================
+app.get("/api/my/events", requireUser, async (req, res) => {
+  try {
+    const telegramUserId = req.telegramUserId;
+
+    const r = await pool.query(
+      `select id, created_at, event_type, device_id, payload
+       from events
+       where telegram_user_id = $1
+       order by created_at desc
+       limit 100`,
+      [telegramUserId]
+    );
+
+    res.json({ ok: true, events: r.rows });
+  } catch (e) {
+    console.error("MY EVENTS error:", e);
+    res.status(500).json({ ok: false, error: e?.message });
+  }
+});
+
+// ================================
+// API: dettaglio evento + risposte
+// GET /api/my/events/:id?uid=1065093935
+// ================================
+app.get("/api/my/events/:id", requireUser, async (req, res) => {
+  try {
+    const telegramUserId = req.telegramUserId;
+    const eventId = req.params.id;
+
+    // 1) evento (verifica ownership)
+    const ev = await pool.query(
+      `select id, created_at, event_type, device_id, payload
+       from events
+       where id = $1 and telegram_user_id = $2`,
+      [eventId, telegramUserId]
+    );
+
+    if (ev.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Event not found (or not yours)" });
+    }
+
+    // 2) risposte collegate
+    const resp = await pool.query(
+      `select id, created_at, question_id, answer, meta
+       from responses
+       where event_id = $1 and telegram_user_id = $2
+       order by created_at asc`,
+      [eventId, telegramUserId]
+    );
+
+    res.json({ ok: true, event: ev.rows[0], responses: resp.rows });
+  } catch (e) {
+    console.error("MY EVENT DETAIL error:", e);
+    res.status(500).json({ ok: false, error: e?.message });
+  }
+});
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {

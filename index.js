@@ -3,10 +3,19 @@ const { Telegraf } = require("telegraf");
 const { Pool } = require("pg");
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET;
+const cors = require("cors");
+
 if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
 
 
 const app = express();
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "https://anxiety-watch-web.onrender.com" // quando lo deployerai
+  ]
+}));
+
 app.use(express.json());
 
 // ENV (le metterai su Render)

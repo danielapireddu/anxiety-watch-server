@@ -3,6 +3,10 @@ const { Telegraf } = require("telegraf");
 const { Pool } = require("pg");
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET;
+const jwt = require("jsonwebtoken");
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
+
 const cors = require("cors");
 
 if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
@@ -33,6 +37,20 @@ const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorize
 
 const bot = new Telegraf(BOT_TOKEN);
 console.log("VERSIONE CODICE:", new Date().toISOString(), "commit marker: V2-no-node");
+
+function requireAuth(req, res, next) {
+  const h = req.headers.authorization || "";
+  const token = h.startsWith("Bearer ") ? h.slice(7) : null;
+  if (!token) return res.status(401).json({ ok: false, error: "Missing token" });
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload; // { telegram_user_id: ... }
+    next();
+  } catch (e) {
+    return res.status(401).json({ ok: false, error: "Invalid token" });
+  }
+}
 
 
 // --- Questionario: domande in sequenza
@@ -254,60 +272,43 @@ bot.on("text", async (ctx) => {
 
 // --- WEBHOOK endpoint (Telegram chiamerà questo URL)
 // --- WEBHOOK endpoint (Telegram chiamerà questo URL)
-app.post(`/${WEBHOOK_SECRET_PATH}`, async (req, res) => {
-    try {
-        console.log("Webhook hit:", req.body?.update_id, req.body?.message?.text);
-        await bot.handleUpdate(req.body);
-        res.sendStatus(200);
-    } catch (e) {
-        console.error("Webhook error:", e);
-        res.sendStatus(500);
-    }
-});
-
 app.post("/auth/code", async (req, res) => {
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ ok: false, error: "Missing code" });
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ ok: false, error: "Missing code" });
 
-    try {
-        const r = await pool.query(
-            `select id, telegram_user_id, expires_at, used_at
+  try {
+    const r = await pool.query(
+      `select id, telegram_user_id, expires_at, used_at
        from login_codes
        where code = $1
        order by expires_at desc
        limit 1`,
-            [String(code)]
-        );
+      [String(code)]
+    );
 
-        if (r.rowCount === 0) {
-            return res.status(401).json({ ok: false, error: "Invalid code" });
-        }
-
-        const row = r.rows[0];
-
-        if (row.used_at) {
-            return res.status(401).json({ ok: false, error: "Code already used" });
-        }
-
-        if (new Date(row.expires_at) < new Date()) {
-            return res.status(401).json({ ok: false, error: "Code expired" });
-        }
-
-        // segna come usato
-        await pool.query(`update login_codes set used_at = now() where id = $1`, [row.id]);
-
-        // crea token
-        const token = jwt.sign(
-            { telegram_user_id: row.telegram_user_id },
-            JWT_SECRET,
-            { expiresIn: "7d" }
-        );
-
-        res.json({ ok: true, token });
-    } catch (e) {
-        console.error("AUTH CODE error:", e);
-        res.status(500).json({ ok: false, error: "Server error" });
+    if (r.rowCount === 0) {
+      return res.status(401).json({ ok: false, error: "Invalid code" });
     }
+
+    const row = r.rows[0];
+
+    if (row.used_at) return res.status(401).json({ ok: false, error: "Code already used" });
+    if (new Date(row.expires_at) < new Date()) return res.status(401).json({ ok: false, error: "Code expired" });
+
+    await pool.query(`update login_codes set used_at = now() where id = $1`, [row.id]);
+
+    const token = jwt.sign(
+      { telegram_user_id: row.telegram_user_id },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.json({ ok: true, token, uid: row.telegram_user_id });
+
+  } catch (e) {
+    console.error("AUTH CODE error:", e);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
 });
 
 
@@ -386,6 +387,27 @@ app.post("/login", async (req, res) => {
   }
 });
 
+app.get("/api/my/events", requireAuth, async (req, res) => {
+  try {
+    const telegramUserId = req.user.telegram_user_id;
+
+    const r = await pool.query(
+      `select id, created_at, event_type, device_id, payload
+       from events
+       where telegram_user_id = $1
+       order by created_at desc
+       limit 200`,
+      [telegramUserId]
+    );
+
+    return res.json({ ok: true, events: r.rows });
+  } catch (e) {
+    console.error("MY EVENTS error:", e);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+
 // ================================
 // AUTH: leggi telegram_user_id dalla sessione
 // ================================
@@ -398,7 +420,7 @@ function requireUser(req, res, next) {
   const uid = req.query.uid ? Number(req.query.uid) : null;
 
   if (!uid) {
-    return res.status(401).json({ ok: false, error: "Missing user. Add ?uid=YOUR_TELEGRAM_ID (temporary)." });
+    return res.status(401).json({ ok: false, error: "Missing user. Add ?uid=1065093935 (temporary)." });
   }
 
   req.telegramUserId = uid;
@@ -530,3 +552,29 @@ app.get("/events/:id", requireAuth, async (req, res) => {
     res.json({ ok: true, event: ev.rows[0], responses: ans.rows });
 });
 
+     app.get("/api/my/events", async (req, res) => {
+  try {
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    if (!token) return res.status(401).json({ ok: false, error: "Missing token" });
+
+    // ✅ Qui deve esserci la tua funzione che valida il token
+    // e ti restituisce telegram_user_id.
+    // Esempio:
+    const telegramUserId = getTelegramUserIdFromToken(token); // <-- tua funzione
+
+    const r = await pool.query(
+      `select id, created_at, event_type, device_id, payload
+       from events
+       where telegram_user_id = $1
+       order by created_at desc
+       limit 200`,
+      [telegramUserId]
+    );
+
+    res.json({ ok: true, events: r.rows });
+  } catch (e) {
+    console.error("MY EVENTS error:", e);
+    res.status(500).json({ ok: false, error: "Server error" });
+  }
+});

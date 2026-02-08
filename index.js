@@ -1,15 +1,14 @@
 ﻿const express = require("express");
 const { Telegraf } = require("telegraf");
 const { Pool } = require("pg");
-const jwt = require("jsonwebtoken");
-const JWT_SECRET = process.env.JWT_SECRET;
+
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
 
 const cors = require("cors");
 
-if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
+
 
 
 const app = express();
@@ -185,35 +184,6 @@ bot.command("login", async (ctx) => {
 });
 
 
-function generateCode6() {
-    return String(Math.floor(100000 + Math.random() * 900000)); // 6 cifre
-}
-
-bot.command("login", async (ctx) => {
-    if (!ctx.from?.id) return;
-
-    const telegramUserId = Number(ctx.from.id);
-
-    try {
-        // genera codice + scadenza 10 minuti
-        const code = generateCode6();
-        const result = await pool.query(
-            `insert into login_codes (telegram_user_id, code, expires_at)
-       values ($1, $2, now() + interval '10 minutes')
-       returning code, expires_at`,
-            [telegramUserId, code]
-        );
-
-        await ctx.reply(
-            "Codice di accesso (valido 10 minuti):\n\n" +
-            result.rows[0].code +
-            "\n\nApri il sito e inseriscilo nella pagina /login."
-        );
-    } catch (e) {
-        console.error("LOGIN CODE error:", e);
-        await ctx.reply("Errore: non riesco a generare il codice. Riprova tra poco.");
-    }
-});
 
 
 // Salva qualunque messaggio testo come risposta “test”
@@ -303,7 +273,7 @@ app.post("/auth/code", async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    return res.json({ ok: true, token, uid: row.telegram_user_id });
+    return res.json({ ok: true, token, uid: String(row.telegram_user_id) });
 
   } catch (e) {
     console.error("AUTH CODE error:", e);
@@ -345,47 +315,6 @@ app.get("/db-test", async (req, res) => {
     }
 });
 
-app.post("/login", async (req, res) => {
-  try {
-    const { code } = req.body || {};
-    if (!code || typeof code !== "string") {
-      return res.status(400).json({ ok: false, error: "Missing code" });
-    }
-
-    const r = await pool.query(
-      `select id, telegram_user_id, expires_at, used_at
-       from login_codes
-       where code = $1
-       order by created_at desc
-       limit 1`,
-      [code.trim()]
-    );
-
-    if (r.rowCount === 0) {
-      return res.status(401).json({ ok: false, error: "Invalid code" });
-    }
-
-    const row = r.rows[0];
-
-    if (row.used_at) {
-      return res.status(401).json({ ok: false, error: "Code already used" });
-    }
-
-    if (new Date(row.expires_at).getTime() < Date.now()) {
-      return res.status(401).json({ ok: false, error: "Code expired" });
-    }
-
-    // segna come usato
-    await pool.query(`update login_codes set used_at = now() where id = $1`, [row.id]);
-
-    // per ora restituiamo solo telegram_user_id
-    // (poi lo trasformeremo in sessione/token)
-    return res.json({ ok: true, telegram_user_id: row.telegram_user_id });
-  } catch (e) {
-    console.error("POST /login error:", e);
-    return res.status(500).json({ ok: false, error: "Server error" });
-  }
-});
 
 app.get("/api/my/events", requireAuth, async (req, res) => {
   try {
@@ -415,76 +344,14 @@ app.get("/api/my/events", requireAuth, async (req, res) => {
 // Per ora facciamo una versione "debug" via querystring, così sblocchiamo subito il sito.
 // Poi lo rendiamo sicuro con sessione vera.
 
-function requireUser(req, res, next) {
-  // DEBUG TEMPORANEO: ?uid=1065093935
-  const uid = req.query.uid ? Number(req.query.uid) : null;
-
-  if (!uid) {
-    return res.status(401).json({ ok: false, error: "Missing user. Add ?uid=1065093935 (temporary)." });
-  }
-
-  req.telegramUserId = uid;
-  next();
-}
-
-// ================================
-// API: lista eventi dell'utente
-// GET /api/my/events?uid=1065093935
-// ================================
-app.get("/api/my/events", requireUser, async (req, res) => {
+app.post(`/${WEBHOOK_SECRET_PATH}`, async (req, res) => {
   try {
-    const telegramUserId = req.telegramUserId;
-
-    const r = await pool.query(
-      `select id, created_at, event_type, device_id, payload
-       from events
-       where telegram_user_id = $1
-       order by created_at desc
-       limit 100`,
-      [telegramUserId]
-    );
-
-    res.json({ ok: true, events: r.rows });
+    console.log("Webhook hit:", req.body?.update_id, req.body?.message?.text);
+    await bot.handleUpdate(req.body);
+    res.sendStatus(200);
   } catch (e) {
-    console.error("MY EVENTS error:", e);
-    res.status(500).json({ ok: false, error: e?.message });
-  }
-});
-
-// ================================
-// API: dettaglio evento + risposte
-// GET /api/my/events/:id?uid=1065093935
-// ================================
-app.get("/api/my/events/:id", requireUser, async (req, res) => {
-  try {
-    const telegramUserId = req.telegramUserId;
-    const eventId = req.params.id;
-
-    // 1) evento (verifica ownership)
-    const ev = await pool.query(
-      `select id, created_at, event_type, device_id, payload
-       from events
-       where id = $1 and telegram_user_id = $2`,
-      [eventId, telegramUserId]
-    );
-
-    if (ev.rows.length === 0) {
-      return res.status(404).json({ ok: false, error: "Event not found (or not yours)" });
-    }
-
-    // 2) risposte collegate
-    const resp = await pool.query(
-      `select id, created_at, question_id, answer, meta
-       from responses
-       where event_id = $1 and telegram_user_id = $2
-       order by created_at asc`,
-      [eventId, telegramUserId]
-    );
-
-    res.json({ ok: true, event: ev.rows[0], responses: resp.rows });
-  } catch (e) {
-    console.error("MY EVENT DETAIL error:", e);
-    res.status(500).json({ ok: false, error: e?.message });
+    console.error("Webhook error:", e);
+    res.sendStatus(500);
   }
 });
 
@@ -498,59 +365,7 @@ app.listen(PORT, async () => {
     console.log("Webhook set to:", webhookUrl);
 });
 
-function requireAuth(req, res, next) {
-    const h = req.headers.authorization || "";
-    const m = h.match(/^Bearer (.+)$/);
-    if (!m) return res.status(401).json({ ok: false, error: "Missing token" });
-
-    try {
-        const payload = jwt.verify(m[1], JWT_SECRET);
-        req.user = payload; // { telegram_user_id: ... }
-        next();
-    } catch (e) {
-        return res.status(401).json({ ok: false, error: "Invalid token" });
-    }
-}
-
-app.get("/my-events", requireAuth, async (req, res) => {
-    const telegramUserId = req.user.telegram_user_id;
-
-    const r = await pool.query(
-        `select id, created_at, event_type, device_id, payload
-     from events
-     where telegram_user_id = $1
-     order by created_at desc
-     limit 200`,
-        [telegramUserId]
-    );
-
-    res.json({ ok: true, events: r.rows });
-});
-
-app.get("/events/:id", requireAuth, async (req, res) => {
-    const telegramUserId = req.user.telegram_user_id;
-    const eventId = req.params.id;
-
-    // evento deve appartenere all'utente
-    const ev = await pool.query(
-        `select id, created_at, event_type, device_id, payload
-     from events
-     where id = $1 and telegram_user_id = $2`,
-        [eventId, telegramUserId]
-    );
-
-    if (ev.rowCount === 0) return res.status(404).json({ ok: false, error: "Not found" });
-
-    const ans = await pool.query(
-        `select id, question_id, answer, created_at, meta
-     from responses
-     where event_id = $1 and telegram_user_id = $2
-     order by created_at asc`,
-        [eventId, telegramUserId]
-    );
-
-    res.json({ ok: true, event: ev.rows[0], responses: ans.rows });
-});
+ 
 
      app.get("/api/my/events", async (req, res) => {
   try {
@@ -576,5 +391,36 @@ app.get("/events/:id", requireAuth, async (req, res) => {
   } catch (e) {
     console.error("MY EVENTS error:", e);
     res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+app.get("/api/my/events/:id", requireAuth, async (req, res) => {
+  try {
+    const telegramUserId = req.user.telegram_user_id;
+    const eventId = req.params.id;
+
+    const ev = await pool.query(
+      `select id, created_at, event_type, device_id, payload
+       from events
+       where id = $1 and telegram_user_id = $2`,
+      [eventId, telegramUserId]
+    );
+
+    if (ev.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Event not found (or not yours)" });
+    }
+
+    const resp = await pool.query(
+      `select id, created_at, question_id, answer, meta
+       from responses
+       where event_id = $1 and telegram_user_id = $2
+       order by created_at asc`,
+      [eventId, telegramUserId]
+    );
+
+    return res.json({ ok: true, event: ev.rows[0], responses: resp.rows });
+  } catch (e) {
+    console.error("MY EVENT DETAIL error:", e);
+    return res.status(500).json({ ok: false, error: "Server error" });
   }
 });

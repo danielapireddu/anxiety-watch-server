@@ -15,9 +15,12 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https://anxiety-watch-web.onrender.com" // quando lo deployerai
-  ]
+    "https://anxiety-watch-web.onrender.com"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
+
 
 app.use(express.json());
 
@@ -52,17 +55,19 @@ function requireAuth(req, res, next) {
 }
 
 
-// --- Questionario: domande in sequenza
+// --- Questionnaire: sequential questions
 const QUESTIONS = [
-    { id: "q1_dover", text: "Dove ti trovavi durante l'episodio?" },
-    { id: "q2_input", text: "Cosa stavi facendo quando è iniziata l’ansia?" },
-    { id: "q3_compagnia", text: "Eri solo?" },
-    { id: "q4_sintomi", text: "Hai riconsociuto dei sintomi specifici?" },
-    { id: "q5_soluzione", text: "Come ti è passato?" },
-    { id: "q6_causa", text: "Sai cosa potrebbe averlo scatenato?" },
-    { id: "q7_durata", text: "Quanto è durato (in minuti)?" },
-    { id: "q8_intensita", text: "Quanta è stata la sua intensità da 1 a 10?" },
+    { id: "q1_where", text: "Where were you during the episode?" },
+    { id: "q2_what", text: "What were you doing when the anxiety started?" },
+    { id: "q3_company", text: "Were you alone?" },
+    { id: "q4_symptom", text: "Did you recognize any specific symptoms?" },
+    { id: "q5_solution", text: "How did it go away?" },
+    { id: "q6_why", text: "Do you know what might have triggered it?" },
+    { id: "q7_time", text: "How long did it last (in minutes)?" },
+    { id: "q8_intensity", text: "How intense was it on a scale from 1 to 10?" },
 ];
+
+
 
 // Stato in memoria per utente: a che domanda è arrivato + event_id collegato
 const userState = new Map();
@@ -356,44 +361,6 @@ app.post(`/${WEBHOOK_SECRET_PATH}`, async (req, res) => {
 });
 
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, async () => {
-    // setWebhook all'avvio
-    const webhookUrl = `${PUBLIC_URL}/${WEBHOOK_SECRET_PATH}`;
-    await bot.telegram.setWebhook(webhookUrl);
-    console.log("Server listening on port", PORT);
-    console.log("Webhook set to:", webhookUrl);
-});
-
- 
-
-     app.get("/api/my/events", async (req, res) => {
-  try {
-    const auth = req.headers.authorization || "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-    if (!token) return res.status(401).json({ ok: false, error: "Missing token" });
-
-    // ✅ Qui deve esserci la tua funzione che valida il token
-    // e ti restituisce telegram_user_id.
-    // Esempio:
-    const telegramUserId = getTelegramUserIdFromToken(token); // <-- tua funzione
-
-    const r = await pool.query(
-      `select id, created_at, event_type, device_id, payload
-       from events
-       where telegram_user_id = $1
-       order by created_at desc
-       limit 200`,
-      [telegramUserId]
-    );
-
-    res.json({ ok: true, events: r.rows });
-  } catch (e) {
-    console.error("MY EVENTS error:", e);
-    res.status(500).json({ ok: false, error: "Server error" });
-  }
-});
-
 app.get("/api/my/events/:id", requireAuth, async (req, res) => {
   try {
     const telegramUserId = req.user.telegram_user_id;
@@ -424,3 +391,16 @@ app.get("/api/my/events/:id", requireAuth, async (req, res) => {
     return res.status(500).json({ ok: false, error: "Server error" });
   }
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, async () => {
+    // setWebhook all'avvio
+    const webhookUrl = `${PUBLIC_URL}/${WEBHOOK_SECRET_PATH}`;
+    await bot.telegram.setWebhook(webhookUrl);
+    console.log("Server listening on port", PORT);
+    console.log("Webhook set to:", webhookUrl);
+});
+
+ 
+
+

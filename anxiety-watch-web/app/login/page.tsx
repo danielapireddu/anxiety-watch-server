@@ -15,55 +15,117 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const r = await fetch(process.env.NEXT_PUBLIC_API_URL + "/auth/code", {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL;
+      if (!apiBase) {
+        setErr("Missing NEXT_PUBLIC_API_URL in .env.local");
+        return;
+      }
+
+      const r = await fetch(`${apiBase}/auth/code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
       });
 
       const data = await r.json();
+
       if (!data.ok) {
-        setErr(data.error || "Errore login");
-        setLoading(false);
+        setErr(data.error || "Login error");
         return;
       }
 
+      // Save session
       localStorage.setItem("token", data.token);
+      localStorage.setItem("uid", String(data.uid));
+
       router.push("/dashboard");
     } catch {
-      setErr("Errore di rete");
+      setErr("Network error");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 480 }}>
-      <h1 style={{ fontSize: 28, marginBottom: 12 }}>Login</h1>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        fontFamily: "system-ui",
+        background: "white",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 520, textAlign: "center" }}>
+        <h1 style={{ fontSize: 40, fontWeight: 700, margin: 0 }}>CalmBand</h1>
+        <h2 style={{ fontSize: 18, fontWeight: 600, marginTop: 10, marginBottom: 18, color: "#333" }}>
+          Login page
+        </h2>
 
-      <p>
-        1) Scrivi al bot <b>/login</b><br />
-        2) Inserisci qui il codice
-      </p>
+        <p style={{ margin: "0 auto", color: "#444", lineHeight: 1.55, maxWidth: 460 }}>
+          To protect your privacy, each user can only access their own events and questionnaire data.
+          This login process links your web session to your Telegram account.
+        </p>
 
-      <form onSubmit={onSubmit} style={{ marginTop: 16 }}>
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="Codice (6 cifre)"
-          style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #ccc" }}
-        />
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{ marginTop: 12, padding: 12, borderRadius: 10, border: "1px solid #333" }}
+        <div
+          style={{
+            marginTop: 18,
+            padding: 14,
+            borderRadius: 14,
+            border: "1px solid rgba(0,0,0,0.12)",
+            textAlign: "left",
+            background: "white",
+          }}
         >
-          {loading ? "Accesso..." : "Accedi"}
-        </button>
+          <div style={{ fontSize: 14, color: "#222", lineHeight: 1.6 }}>
+            <div style={{ marginBottom: 6 }}>
+              <b>Step 1.</b> Open Telegram, go to the bot, and type <b>/login</b>
+            </div>
+            <div>
+              <b>Step 2.</b> Paste here the 6-digit code the bot sends you
+            </div>
+          </div>
 
-        {err && <p style={{ marginTop: 12, color: "crimson" }}>{err}</p>}
-      </form>
+          <form onSubmit={onSubmit} style={{ marginTop: 14 }}>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="6-digit code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 12,
+                border: "1px solid rgba(0,0,0,0.2)",
+                fontSize: 16,
+                outline: "none",
+              }}
+            />
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                marginTop: 12,
+                padding: "12px 14px",
+                borderRadius: 12,
+                border: "1px solid #111",
+                background: "white",
+                cursor: loading ? "not-allowed" : "pointer",
+                fontSize: 16,
+                width: "fit-content",
+              }}
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </button>
+
+            {err && <p style={{ marginTop: 12, color: "crimson" }}>{err}</p>}
+          </form>
+        </div>
+      </div>
     </main>
   );
 }

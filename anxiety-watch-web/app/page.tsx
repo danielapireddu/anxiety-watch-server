@@ -77,19 +77,7 @@ export default function HomePage() {
             Go to Login →
           </Link>
 
-          <Link
-            href="/dashboard"
-            style={{
-              padding: "12px 16px",
-              borderRadius: 12,
-              border: "1px solid rgba(0,0,0,0.2)",
-              textDecoration: "none",
-              color: "#111",
-              background: "white",
-            }}
-          >
-            Open Dashboard →
-          </Link>
+        
         </div>
 
         <p style={{ marginTop: 14, fontSize: 13, color: "#666" }}>

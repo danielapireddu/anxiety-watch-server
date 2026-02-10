@@ -114,10 +114,9 @@ async function notifyQuestionnaireReady(telegramUserId, eventId) {
     // 1) ensure session row
     // Se hai UNIQUE(telegram_user_id, event_id) va bene
     await pool.query(
-        `insert into questionnaire_sessions (telegram_user_id, event_id, step, status, updated_at)
-     values ($1, $2, 0, 'pending', now())
-     on conflict (telegram_user_id, event_id)
-     do update set status='pending', step=0, updated_at=now()`,
+        `insert into questionnaire_sessions (telegram_user_id, event_id, step, status)
+     values ($1, $2, 0, 'pending')
+     on conflict (telegram_user_id, event_id) do nothing`,
         [telegramUserId, eventId]
     );
 
@@ -135,8 +134,8 @@ async function notifyQuestionnaireReady(telegramUserId, eventId) {
 
     // 3) send message with inline buttons
     await bot.telegram.sendMessage(
-        chatId,
-        "CalmBand recorded an event.\nWhen you feel ready, you can start the short questionnaire.",
+        telegramUserId,
+        "CalmBand recorded an event. When you feel ready, you can start the short questionnaire.",
         {
             reply_markup: {
                 inline_keyboard: [
@@ -145,7 +144,6 @@ async function notifyQuestionnaireReady(telegramUserId, eventId) {
                 ],
             },
         }
-    );
 
     return { ok: true };
 }

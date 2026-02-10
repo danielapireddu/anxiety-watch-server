@@ -144,7 +144,7 @@ async function notifyQuestionnaireReady(telegramUserId, eventId) {
                 ],
             },
         }
-
+    );
     return { ok: true };
 }
 

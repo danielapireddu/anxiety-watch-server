@@ -1,98 +1,101 @@
 ﻿const express = require("express");
 const { Telegraf } = require("telegraf");
 const { Pool } = require("pg");
-
 const jwt = require("jsonwebtoken");
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
-
 const cors = require("cors");
 
-
-
-
-
 const app = express();
-const allowedOrigins = [
-  "http://localhost:3000",
-  "https://anxiety-watch-web.onrender.com",
-  "https://calmbanddr.vercel.app",
-];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-
-    // permette anche preview vercel tipo https://xxxx.vercel.app
-    if (origin.endsWith(".vercel.app")) return callback(null, true);
-
-    return callback(new Error("Not allowed by CORS: " + origin));
-  },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-}));
-
-
-app.use(express.json());
-
-// ENV (le metterai su Render)
+// =====================
+// ENV
+// =====================
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const DATABASE_URL = process.env.DATABASE_URL;
-const WEBHOOK_SECRET_PATH = process.env.WEBHOOK_SECRET_PATH; // es: "telegram-9f3k2"
-const PUBLIC_URL = process.env.PUBLIC_URL; // es: https://tuo-servizio.onrender.com
+const WEBHOOK_SECRET_PATH = process.env.WEBHOOK_SECRET_PATH;
+const PUBLIC_URL = process.env.PUBLIC_URL;
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!BOT_TOKEN) throw new Error("Missing BOT_TOKEN");
 if (!DATABASE_URL) throw new Error("Missing DATABASE_URL");
 if (!WEBHOOK_SECRET_PATH) throw new Error("Missing WEBHOOK_SECRET_PATH");
 if (!PUBLIC_URL) throw new Error("Missing PUBLIC_URL");
+if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
 
-const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
+// =====================
+// CORS
+// =====================
+const allowedOrigins = [
+    "http://localhost:3000",
+    "https://anxiety-watch-web.onrender.com",
+    "https://calmbanddr.vercel.app",
+];
+
+app.use(
+    cors({
+        origin: function (origin, callback) {
+            if (!origin) return callback(null, true);
+            if (allowedOrigins.includes(origin)) return callback(null, true);
+            if (origin.endsWith(".vercel.app")) return callback(null, true);
+            return callback(new Error("Not allowed by CORS: " + origin));
+        },
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+    })
+);
+
+app.use(express.json());
+
+// =====================
+// DB + BOT
+// =====================
+const pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+});
 
 const bot = new Telegraf(BOT_TOKEN);
-async function notifyQuestionnaireReady(telegramUserId, eventId) {
-    // 1) crea una sessione "pending" (o aggiorna se esiste già)
-    await pool.query(
-        `insert into questionnaire_sessions (telegram_user_id, event_id, step, status)
-     values ($1, $2, 0, 'pending')
-     on conflict do nothing`,
-        [telegramUserId, eventId]
-    );
 
-    // 2) invia messaggio Telegram con bottone Start
-    await bot.telegram.sendMessage(
-        telegramUserId,
-        "CalmBand recorded an event. When you feel ready, you can start the short questionnaire.",
-        {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "Start questionnaire", callback_data: `start_q:${eventId}` }],
-                    [{ text: "Not now", callback_data: `dismiss_q:${eventId}` }],
-                ],
-            },
-        }
+console.log("SERVER START:", new Date().toISOString());
+
+// =====================
+// Helpers
+// =====================
+async function upsertTelegramUserFromCtx(ctx) {
+    if (!ctx.from?.id) return;
+
+    const telegramUserId = Number(ctx.from.id);
+    const username = ctx.from.username || null;
+    const chatId = ctx.chat?.id ? Number(ctx.chat.id) : null;
+
+    // se chatId è null, non sovrascriviamo un chat_id già valido
+    await pool.query(
+        `insert into telegram_users (telegram_user_id, username, chat_id)
+     values ($1, $2, $3)
+     on conflict (telegram_user_id)
+     do update set username = excluded.username,
+                  chat_id = coalesce(excluded.chat_id, telegram_users.chat_id)`,
+        [telegramUserId, username, chatId]
     );
 }
-
-console.log("VERSIONE CODICE:", new Date().toISOString(), "commit marker: V2-no-node");
 
 function requireAuth(req, res, next) {
-  const h = req.headers.authorization || "";
-  const token = h.startsWith("Bearer ") ? h.slice(7) : null;
-  if (!token) return res.status(401).json({ ok: false, error: "Missing token" });
+    const h = req.headers.authorization || "";
+    const token = h.startsWith("Bearer ") ? h.slice(7) : null;
+    if (!token) return res.status(401).json({ ok: false, error: "Missing token" });
 
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload; // { telegram_user_id: ... }
-    next();
-  } catch (e) {
-    return res.status(401).json({ ok: false, error: "Invalid token" });
-  }
+    try {
+        const payload = jwt.verify(token, JWT_SECRET);
+        req.user = payload; // { telegram_user_id: ... }
+        return next();
+    } catch {
+        return res.status(401).json({ ok: false, error: "Invalid token" });
+    }
 }
 
-
-// --- Questionnaire: sequential questions
+// =====================
+// Questionnaire questions
+// =====================
 const QUESTIONS = [
     { id: "q1_where", text: "Where were you during the episode?" },
     { id: "q2_what", text: "What were you doing when the anxiety started?" },
@@ -104,140 +107,136 @@ const QUESTIONS = [
     { id: "q8_intensity", text: "How intense was it on a scale from 1 to 10?" },
 ];
 
+// =====================
+// Notify questionnaire ready (uses chat_id!)
+// =====================
+async function notifyQuestionnaireReady(telegramUserId, eventId) {
+    // 1) ensure session row
+    // Se hai UNIQUE(telegram_user_id, event_id) va bene
+    await pool.query(
+        `insert into questionnaire_sessions (telegram_user_id, event_id, step, status, updated_at)
+     values ($1, $2, 0, 'pending', now())
+     on conflict (telegram_user_id, event_id)
+     do update set status='pending', step=0, updated_at=now()`,
+        [telegramUserId, eventId]
+    );
 
+    // 2) get chat_id
+    const u = await pool.query(
+        `select chat_id from telegram_users where telegram_user_id=$1`,
+        [telegramUserId]
+    );
 
-// Stato in memoria per utente: a che domanda è arrivato + event_id collegato
-const userState = new Map();
-// telegramUserId -> { step: number, event_id: string|null }
-
-bot.command("questionario", async (ctx) => {
-    if (!ctx.from?.id) {
-        await ctx.reply("Non riesco a riconoscere l’utente. Prova a scrivere /start e poi /questionario.");
-        return;
+    if (u.rowCount === 0 || !u.rows[0].chat_id) {
+        return { ok: false, warning: "User has no chat_id" };
     }
 
-    const telegramUserId = Number(ctx.from.id);
-    const username = ctx.from.username ? String(ctx.from.username) : null;
+    const chatId = Number(u.rows[0].chat_id);
 
-    try {
-        // 1) registra/aggiorna utente
-        await pool.query(
-            `insert into telegram_users (telegram_user_id, username)
-       values ($1, $2)
-       on conflict (telegram_user_id)
-       do update set username = excluded.username`,
-            [telegramUserId, username]
-        );
+    // 3) send message with inline buttons
+    await bot.telegram.sendMessage(
+        chatId,
+        "CalmBand recorded an event.\nWhen you feel ready, you can start the short questionnaire.",
+        {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "Start questionnaire", callback_data: `start_q:${eventId}` }],
+                    [{ text: "Not now", callback_data: `dismiss_q:${eventId}` }],
+                ],
+            },
+        }
+    );
 
-        // 2) crea evento manuale collegato all’utente
-        const result = await pool.query(
-            `insert into events (device_id, event_type, payload, telegram_user_id)
-       values ($1, $2, $3, $4)
-       returning id`,
-            ["manual", "manual_questionnaire", { source: "telegram", note: "questionario manuale" }, telegramUserId]
-        );
+    return { ok: true };
+}
 
-        const eventId = result.rows[0].id;
-
-        // 3) inizializza lo stato del questionario
-        userState.set(String(telegramUserId), { step: 0, event_id: eventId });
-
-        // 4) invia prima domanda
-        await ctx.reply("Ok, iniziamo il questionario.");
-        await ctx.reply(QUESTIONS[0].text);
-
-    } catch (e) {
-        console.error("QUESTIONARIO error message:", e?.message);
-        console.error("QUESTIONARIO error code:", e?.code);
-        console.error("QUESTIONARIO error detail:", e?.detail);
-        console.error("QUESTIONARIO error full:", e);
-
-        await ctx.reply("Errore tecnico: non riesco a iniziare il questionario. Riprova tra poco.");
-    }
-});
-
-
-
-
-// --- BOT: /start registra utente
+// =====================
+// BOT commands
+// =====================
 bot.start(async (ctx) => {
-    const telegramUserId = Number(ctx.from.id);
- // number va bene
-    const username = ctx.from.username || null;
-
     try {
-        await pool.query(
-            `insert into telegram_users (telegram_user_id, username)
-       values ($1, $2)
-       on conflict (telegram_user_id)
-       do update set username = excluded.username`,
-            [telegramUserId, username]
-        );
-
-        await ctx.reply(
-            "Ciao! 👋\n\n" +
-            "Sono il bot del Questionario Ansia.\n" +
-            "Ti farò alcune domande quando verrà rilevato un evento.\n\n" +
-            "Sei correttamente collegata ✅"
-        );
+        await upsertTelegramUserFromCtx(ctx);
+        await ctx.reply("Hi! ✅ CalmBand bot is connected.");
     } catch (e) {
         console.error("START error:", e);
-        await ctx.reply("Errore tecnico durante la registrazione.");
+        await ctx.reply("Technical error during registration.");
     }
 });
 
 function genCode() {
-  return String(Math.floor(100000 + Math.random() * 900000)); // 6 cifre
+    return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 bot.command("login", async (ctx) => {
-  const telegramUserId = Number(ctx.from?.id);
-  if (!telegramUserId) return;
+    try {
+        await upsertTelegramUserFromCtx(ctx);
 
-  const code = genCode();
-  const expiresMinutes = 10;
+        const telegramUserId = Number(ctx.from?.id);
+        if (!telegramUserId) return;
 
-  try {
-    // assicura utente in telegram_users
-    await pool.query(
-      `insert into telegram_users (telegram_user_id, username)
-       values ($1, $2)
-       on conflict (telegram_user_id)
-       do update set username = excluded.username`,
-      [telegramUserId, ctx.from.username || null]
-    );
+        const code = genCode();
+        const expiresMinutes = 10;
 
-    // salva codice (valido 10 minuti)
-    await pool.query(
-      `insert into login_codes (telegram_user_id, code, expires_at)
+        await pool.query(
+            `insert into login_codes (telegram_user_id, code, expires_at)
        values ($1, $2, now() + ($3 || ' minutes')::interval)`,
-      [telegramUserId, code, String(expiresMinutes)]
-    );
+            [telegramUserId, code, String(expiresMinutes)]
+        );
 
-    await ctx.reply(
-      `Ecco il tuo codice di login: ${code}\n` +
-      `Valido per ${expiresMinutes} minuti.\n` +
-      `Ora vai sul sito e inseriscilo.`
-    );
-  } catch (e) {
-    console.error("LOGIN command error:", e);
-    await ctx.reply("Errore tecnico: non riesco a generare il codice. Riprova tra poco.");
-  }
+        await ctx.reply(
+            `Your login code: ${code}\nValid for ${expiresMinutes} minutes.\nGo to the website and enter it.`
+        );
+    } catch (e) {
+        console.error("LOGIN command error:", e);
+        await ctx.reply("Technical error: cannot generate code right now.");
+    }
 });
 
+// Manual questionnaire trigger (optional)
+bot.command("questionario", async (ctx) => {
+    try {
+        await upsertTelegramUserFromCtx(ctx);
 
+        const telegramUserId = Number(ctx.from?.id);
+        if (!telegramUserId) return;
 
+        // create manual event
+        const result = await pool.query(
+            `insert into events (device_id, event_type, payload, telegram_user_id)
+       values ($1, $2, $3, $4)
+       returning id`,
+            ["manual", "manual_questionnaire", { source: "telegram" }, telegramUserId]
+        );
+
+        const eventId = result.rows[0].id;
+
+        // send the "ready" message with button
+        const n = await notifyQuestionnaireReady(telegramUserId, eventId);
+        if (!n.ok) {
+            await ctx.reply("I created the event, but I cannot message you yet. Please send /start again.");
+        } else {
+            await ctx.reply("Event created ✅ Check the message above to start the questionnaire.");
+        }
+    } catch (e) {
+        console.error("QUESTIONARIO error:", e);
+        await ctx.reply("Technical error: cannot start the questionnaire.");
+    }
+});
+
+// =====================
+// Inline buttons handling
+// =====================
 bot.on("callback_query", async (ctx) => {
     try {
+        await upsertTelegramUserFromCtx(ctx);
+
         const data = ctx.callbackQuery?.data || "";
         const telegramUserId = Number(ctx.from?.id);
         if (!telegramUserId) return;
 
-        // start questionnaire
         if (data.startsWith("start_q:")) {
             const eventId = data.split(":")[1];
 
-            // metti sessione in_progress e reset step
             await pool.query(
                 `update questionnaire_sessions
          set status='in_progress', step=0, updated_at=now()
@@ -251,248 +250,195 @@ bot.on("callback_query", async (ctx) => {
             return;
         }
 
-        // dismiss
         if (data.startsWith("dismiss_q:")) {
             const eventId = data.split(":")[1];
+
             await pool.query(
                 `update questionnaire_sessions
          set status='pending', updated_at=now()
          where telegram_user_id=$1 and event_id=$2`,
                 [telegramUserId, eventId]
             );
+
             await ctx.answerCbQuery("Ok.");
-            await ctx.reply("No problem. You can start later from the website, or by triggering a new code when needed.");
+            await ctx.reply("No problem. You can start later from the website or when you receive a new event.");
             return;
         }
     } catch (e) {
         console.error("callback_query error:", e);
-        try { await ctx.answerCbQuery("Error"); } catch { }
+        try {
+            await ctx.answerCbQuery("Error");
+        } catch { }
     }
 });
 
-
+// =====================
+// Questionnaire answers (text messages)
+// =====================
 bot.on("text", async (ctx) => {
-    const telegramUserId = Number(ctx.from?.id);
-    const text = ctx.message?.text || "";
-    if (!telegramUserId) return;
+    try {
+        await upsertTelegramUserFromCtx(ctx);
 
-    // ignora comandi
-    if (text.startsWith("/")) return;
+        const telegramUserId = Number(ctx.from?.id);
+        const text = ctx.message?.text || "";
+        if (!telegramUserId) return;
 
-    // 1) trova la sessione attiva più recente
-    const s = await pool.query(
-        `select id, event_id, step
-     from questionnaire_sessions
-     where telegram_user_id=$1 and status='in_progress'
-     order by updated_at desc
-     limit 1`,
-        [telegramUserId]
-    );
+        if (text.startsWith("/")) return;
 
-    if (s.rowCount === 0) {
-        await ctx.reply("No active questionnaire. If you just had an event, tap the button in the message I sent you.");
-        return;
-    }
-
-    const session = s.rows[0];
-    const step = session.step;
-    const q = QUESTIONS[step];
-
-    if (!q) {
-        // sessione incoerente: chiudi
-        await pool.query(
-            `update questionnaire_sessions set status='done', updated_at=now() where id=$1`,
-            [session.id]
+        // latest in_progress session
+        const s = await pool.query(
+            `select id, event_id, step
+       from questionnaire_sessions
+       where telegram_user_id=$1 and status='in_progress'
+       order by updated_at desc
+       limit 1`,
+            [telegramUserId]
         );
-        await ctx.reply("Questionnaire completed ✅");
-        return;
-    }
 
-    // 2) salva risposta
-    await pool.query(
-        `insert into responses (event_id, telegram_user_id, question_id, answer, meta)
-     values ($1, $2, $3, $4, $5)`,
-        [session.event_id, telegramUserId, q.id, text, null]
-    );
+        if (s.rowCount === 0) {
+            await ctx.reply("No active questionnaire. If you had an event, tap the Start button in the message I sent you.");
+            return;
+        }
 
-    // 3) avanza step
-    const nextStep = step + 1;
+        const session = s.rows[0];
+        const step = Number(session.step);
+        const q = QUESTIONS[step];
 
-    if (nextStep >= QUESTIONS.length) {
+        if (!q) {
+            await pool.query(
+                `update questionnaire_sessions set status='done', updated_at=now() where id=$1`,
+                [session.id]
+            );
+            await ctx.reply("Questionnaire completed ✅");
+            return;
+        }
+
+        // save answer
+        await pool.query(
+            `insert into responses (event_id, telegram_user_id, question_id, answer, meta)
+       values ($1, $2, $3, $4, $5)`,
+            [session.event_id, telegramUserId, q.id, text, null]
+        );
+
+        const nextStep = step + 1;
+
+        if (nextStep >= QUESTIONS.length) {
+            await pool.query(
+                `update questionnaire_sessions
+         set status='done', step=$2, updated_at=now()
+         where id=$1`,
+                [session.id, nextStep]
+            );
+            await ctx.reply("Thank you. Questionnaire completed ✅");
+            return;
+        }
+
         await pool.query(
             `update questionnaire_sessions
-       set status='done', step=$2, updated_at=now()
+       set step=$2, updated_at=now()
        where id=$1`,
             [session.id, nextStep]
         );
 
-        await ctx.reply("Thank you. Questionnaire completed ✅");
-        return;
+        await ctx.reply(QUESTIONS[nextStep].text);
+    } catch (e) {
+        console.error("bot.on(text) error:", e);
+        await ctx.reply("Technical error while saving your answer. Please try again.");
     }
-
-    await pool.query(
-        `update questionnaire_sessions
-     set step=$2, updated_at=now()
-     where id=$1`,
-        [session.id, nextStep]
-    );
-
-    await ctx.reply(QUESTIONS[nextStep].text);
 });
 
-
-
-
-
-// --- WEBHOOK endpoint (Telegram chiamerà questo URL)
-// --- WEBHOOK endpoint (Telegram chiamerà questo URL)
+// =====================
+// API: Login code -> JWT token
+// =====================
 app.post("/auth/code", async (req, res) => {
-  const { code } = req.body;
-  if (!code) return res.status(400).json({ ok: false, error: "Missing code" });
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ ok: false, error: "Missing code" });
 
-  try {
-    const r = await pool.query(
-      `select id, telegram_user_id, expires_at, used_at
+    try {
+        const r = await pool.query(
+            `select id, telegram_user_id, expires_at, used_at
        from login_codes
        where code = $1
        order by expires_at desc
        limit 1`,
-      [String(code)]
-    );
+            [String(code)]
+        );
 
-    if (r.rowCount === 0) {
-      return res.status(401).json({ ok: false, error: "Invalid code" });
-    }
+        if (r.rowCount === 0) return res.status(401).json({ ok: false, error: "Invalid code" });
 
-    const row = r.rows[0];
+        const row = r.rows[0];
+        if (row.used_at) return res.status(401).json({ ok: false, error: "Code already used" });
+        if (new Date(row.expires_at) < new Date()) return res.status(401).json({ ok: false, error: "Code expired" });
 
-    if (row.used_at) return res.status(401).json({ ok: false, error: "Code already used" });
-    if (new Date(row.expires_at) < new Date()) return res.status(401).json({ ok: false, error: "Code expired" });
+        await pool.query(`update login_codes set used_at = now() where id=$1`, [row.id]);
 
-    await pool.query(`update login_codes set used_at = now() where id = $1`, [row.id]);
+        const token = jwt.sign({ telegram_user_id: row.telegram_user_id }, JWT_SECRET, { expiresIn: "7d" });
 
-    const token = jwt.sign(
-      { telegram_user_id: row.telegram_user_id },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    return res.json({ ok: true, token, uid: String(row.telegram_user_id) });
-
-  } catch (e) {
-    console.error("AUTH CODE error:", e);
-    return res.status(500).json({ ok: false, error: "Server error" });
-  }
-});
-
-
-// --- API: ricevi un evento dall’ESP32 (quando sarà pronto)
-app.post("/events", async (req, res) => {
-    const { device_id, event_type, payload } = req.body;
-
-    if (!device_id || !event_type || !payload) {
-        return res.status(400).json({ error: "Missing device_id, event_type, or payload" });
-    }
-
-    const result = await pool.query(
-        `insert into events (device_id, event_type, payload)
-     values ($1, $2, $3)
-     returning id, created_at`,
-        [device_id, event_type, payload]
-    );
-
-    // Qui in futuro farai partire il questionario legato a event_id
-    return res.json({ ok: true, event: result.rows[0] });
-});
-
-// health check
-app.get("/", (req, res) => res.send("OK"));
-
-
-app.get("/db-test", async (req, res) => {
-    try {
-        const r = await pool.query("select now() as now");
-        res.json({ ok: true, now: r.rows[0].now });
+        return res.json({ ok: true, token, uid: String(row.telegram_user_id) });
     } catch (e) {
-        console.error("DB TEST error message:", e?.message);
-        console.error("DB TEST error code:", e?.code);
-        console.error("DB TEST error detail:", e?.detail);
-        res.status(500).json({ ok: false, error: e?.message, code: e?.code });
+        console.error("AUTH CODE error:", e);
+        return res.status(500).json({ ok: false, error: "Server error" });
     }
 });
 
-
+// =====================
+// API: list my events (web)
+// =====================
 app.get("/api/my/events", requireAuth, async (req, res) => {
-  try {
-    const telegramUserId = req.user.telegram_user_id;
+    try {
+        const telegramUserId = req.user.telegram_user_id;
 
-    const r = await pool.query(
-      `select id, created_at, event_type, device_id, payload
+        const r = await pool.query(
+            `select id, created_at, event_type, device_id, payload
        from events
-       where telegram_user_id = $1
+       where telegram_user_id=$1
        order by created_at desc
        limit 200`,
-      [telegramUserId]
-    );
+            [telegramUserId]
+        );
 
-    return res.json({ ok: true, events: r.rows });
-  } catch (e) {
-    console.error("MY EVENTS error:", e);
-    return res.status(500).json({ ok: false, error: "Server error" });
-  }
+        return res.json({ ok: true, events: r.rows });
+    } catch (e) {
+        console.error("MY EVENTS error:", e);
+        return res.status(500).json({ ok: false, error: "Server error" });
+    }
 });
-
-
-// ================================
-// AUTH: leggi telegram_user_id dalla sessione
-// ================================
-// NOTE: qui sotto assumo che tu stia mettendo il telegram_user_id in un header o cookie.
-// Per ora facciamo una versione "debug" via querystring, così sblocchiamo subito il sito.
-// Poi lo rendiamo sicuro con sessione vera.
-
-app.post(`/${WEBHOOK_SECRET_PATH}`, async (req, res) => {
-  try {
-    console.log("Webhook hit:", req.body?.update_id, req.body?.message?.text);
-    await bot.handleUpdate(req.body);
-    res.sendStatus(200);
-  } catch (e) {
-    console.error("Webhook error:", e);
-    res.sendStatus(500);
-  }
-});
-
 
 app.get("/api/my/events/:id", requireAuth, async (req, res) => {
-  try {
-    const telegramUserId = req.user.telegram_user_id;
-    const eventId = req.params.id;
+    try {
+        const telegramUserId = req.user.telegram_user_id;
+        const eventId = req.params.id;
 
-    const ev = await pool.query(
-      `select id, created_at, event_type, device_id, payload
+        const ev = await pool.query(
+            `select id, created_at, event_type, device_id, payload
        from events
-       where id = $1 and telegram_user_id = $2`,
-      [eventId, telegramUserId]
-    );
+       where id=$1 and telegram_user_id=$2`,
+            [eventId, telegramUserId]
+        );
 
-    if (ev.rows.length === 0) {
-      return res.status(404).json({ ok: false, error: "Event not found (or not yours)" });
-    }
+        if (ev.rows.length === 0) {
+            return res.status(404).json({ ok: false, error: "Event not found (or not yours)" });
+        }
 
-    const resp = await pool.query(
-      `select id, created_at, question_id, answer, meta
+        const resp = await pool.query(
+            `select id, created_at, question_id, answer, meta
        from responses
-       where event_id = $1 and telegram_user_id = $2
+       where event_id=$1 and telegram_user_id=$2
        order by created_at asc`,
-      [eventId, telegramUserId]
-    );
+            [eventId, telegramUserId]
+        );
 
-    return res.json({ ok: true, event: ev.rows[0], responses: resp.rows });
-  } catch (e) {
-    console.error("MY EVENT DETAIL error:", e);
-    return res.status(500).json({ ok: false, error: "Server error" });
-  }
+        return res.json({ ok: true, event: ev.rows[0], responses: resp.rows });
+    } catch (e) {
+        console.error("EVENT DETAIL error:", e);
+        return res.status(500).json({ ok: false, error: "Server error" });
+    }
 });
 
+// =====================
+// API: Panic (Arduino -> server)
+// Creates event + notifies user with button
+// =====================
 app.post("/panic", async (req, res) => {
     const { telegram_user_id, hr, vibration } = req.body;
 
@@ -500,69 +446,66 @@ app.post("/panic", async (req, res) => {
         return res.status(400).json({ ok: false, error: "Missing telegram_user_id" });
     }
 
+    const telegramUserId = Number(telegram_user_id);
+
     try {
-        // 1) crea evento nel database
+        // create event
         const result = await pool.query(
             `insert into events (device_id, event_type, payload, telegram_user_id)
        values ($1, $2, $3, $4)
        returning id`,
-            [
-                "calmband",
-                "panic_detected",
-                { hr, vibration, source: "arduino" },
-                Number(telegram_user_id)
-            ]
+            ["calmband", "panic_detected", { hr, vibration, source: "arduino" }, telegramUserId]
         );
 
         const eventId = result.rows[0].id;
 
-        // 2) recupera chat_id dell’utente
-        const u = await pool.query(
-            `select chat_id from telegram_users where telegram_user_id = $1`,
-            [Number(telegram_user_id)]
-        );
+        // notify with inline buttons
+        const n = await notifyQuestionnaireReady(telegramUserId, eventId);
 
-        if (u.rowCount === 0 || !u.rows[0].chat_id) {
-            return res.json({ ok: true, warning: "User has no chat_id" });
+        // always return ok (even if telegram can't message)
+        if (!n.ok) {
+            return res.json({ ok: true, event_id: eventId, warning: n.warning });
         }
 
-        const chatId = u.rows[0].chat_id;
-
-        // 3) inizializza stato questionario
-        userState.set(String(telegram_user_id), {
-            step: 0,
-            event_id: eventId,
-        });
-
-        try {
-            await bot.telegram.sendMessage(
-                chatId,
-                "⚠️ CalmBand detected a panic-related event.\n\n" +
-                "When you feel ready, please answer a few short questions.\n\n" +
-                QUESTIONS[0].text
-            );
-        } catch (err) {
-            console.error("Telegram sendMessage failed:", err);
-            // NON blocchiamo la risposta HTTP
-        }
-
-        res.json({ ok: true, event_id: eventId });
+        return res.json({ ok: true, event_id: eventId });
     } catch (e) {
         console.error("PANIC error:", e);
-        res.status(500).json({ ok: false, error: "Server error" });
+        return res.status(500).json({ ok: false, error: "Server error" });
     }
 });
 
+// =====================
+// Webhook endpoint (Telegram calls this)
+// =====================
+app.post(`/${WEBHOOK_SECRET_PATH}`, async (req, res) => {
+    try {
+        await bot.handleUpdate(req.body);
+        res.sendStatus(200);
+    } catch (e) {
+        console.error("Webhook error:", e);
+        res.sendStatus(500);
+    }
+});
 
+// health
+app.get("/", (req, res) => res.send("OK"));
+app.get("/db-test", async (req, res) => {
+    try {
+        const r = await pool.query("select now() as now");
+        res.json({ ok: true, now: r.rows[0].now });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e?.message, code: e?.code });
+    }
+});
+
+// =====================
+// Listen + setWebhook
+// =====================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
-    // setWebhook all'avvio
     const webhookUrl = `${PUBLIC_URL}/${WEBHOOK_SECRET_PATH}`;
     await bot.telegram.setWebhook(webhookUrl);
     console.log("Server listening on port", PORT);
     console.log("Webhook set to:", webhookUrl);
 });
-
- 
-
 

@@ -1,6 +1,18 @@
-﻿import Link from "next/link";
+﻿"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export default function HomePage() {
+  const [hasSession, setHasSession] = useState(false);
+
+  useEffect(() => {
+    // Se esistono token+uid, significa che (probabilmente) sei già loggata
+    const t = localStorage.getItem("token");
+    const u = localStorage.getItem("uid");
+    setHasSession(Boolean(t && u));
+  }, []);
+
   return (
     <main
       style={{
@@ -15,59 +27,31 @@ export default function HomePage() {
           CalmBand
         </h1>
 
-        <p style={{ margin: "0 auto", color: "#444", lineHeight: 1.6, maxWidth: 720 }}>
-          A wearable project for early, discreet support during anxiety and panic-related episodes.
-        </p>
-      </div>
-
-      <div
-        style={{
-          marginTop: 26,
-          border: "1px solid rgba(0,0,0,0.12)",
-          borderRadius: 16,
-          padding: 18,
-          background: "white",
-          lineHeight: 1.65,
-          color: "#222",
-        }}
-      >
-        <p style={{ marginTop: 0 }}>
-          Hello, we are <b>Daniela</b> and <b>Roberta</b>, students of Bioengineering at the
-          University of Genoa. CalmBand is the project we developed for the course{" "}
-          <b>Wearable Devices and Interaction</b>.
+        <p style={{ margin: "0 auto", color: "#444", lineHeight: 1.6, maxWidth: 720, fontSize: 16 }}>
+          CalmBand is a wearable companion for anxiety and panic awareness. It does not provide a medical diagnosis,
+          but it helps you recognize early physiological signs (such as changes in heart rate, heart rate variability,
+          and tremor/motion patterns) and offers discreet breathing guidance.
         </p>
 
-        <p>
-          Anxiety and panic episodes are difficult not only because of the event itself, but also
-          because of the uncertainty that they may happen again. From a physiological point of view,
-          these episodes are often associated with measurable changes such as increased heart rate,
-          reduced heart rate variability, and fine tremor.
+        <p style={{ margin: "14px auto 0", color: "#555", lineHeight: 1.6, maxWidth: 720, fontSize: 15 }}>
+          This website is your personal diary: you can view recorded events and, when available, your questionnaire answers.
         </p>
 
-        <p>
-          CalmBand does <b>not</b> provide a clinical diagnosis. Its goal is to recognize when the
-          body is entering a physiological state compatible with anxiety/panic and to provide early,
-          discreet, and continuous support through gentle feedback and breathing guidance.
-        </p>
-
-        <p style={{ marginBottom: 0 }}>
-          This website is the digital companion of the device: here you can securely access your
-          profile, view your recorded events, and review your questionnaire answers over time.
-        </p>
-      </div>
-
-      <div style={{ marginTop: 22, textAlign: "center" }}>
-        <p style={{ marginBottom: 12, color: "#444" }}>
-          If you already have our device, click below to log in using your <b>6-digit Telegram code</b>.
-        </p>
-
-        <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+        <div
+          style={{
+            marginTop: 26,
+            display: "flex",
+            justifyContent: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
           <Link
             href="/login"
             style={{
-              padding: "12px 16px",
+              padding: "10px 14px",
               borderRadius: 12,
-              border: "1px solid #111",
+              border: "1px solid rgba(0,0,0,0.25)",
               textDecoration: "none",
               color: "#111",
               background: "white",
@@ -77,13 +61,62 @@ export default function HomePage() {
             Go to Login →
           </Link>
 
-        
+          <a
+            href="https://t.me/BraccialettoPanico_Bot"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              padding: "10px 14px",
+              borderRadius: 12,
+              border: "1px solid rgba(0,0,0,0.25)",
+              textDecoration: "none",
+              color: "#111",
+              background: "white",
+              fontWeight: 600,
+            }}
+          >
+            Open Telegram Bot ↗
+          </a>
+
+          {hasSession && (
+            <Link
+              href="/dashboard"
+              style={{
+                padding: "10px 14px",
+                borderRadius: 12,
+                border: "1px solid #111",
+                textDecoration: "none",
+                color: "white",
+                background: "#111",
+                fontWeight: 700,
+              }}
+            >
+              Open Dashboard →
+            </Link>
+          )}
         </div>
 
-        <p style={{ marginTop: 14, fontSize: 13, color: "#666" }}>
-          Privacy note: each user can only access their own events and responses.
-        </p>
+        <div style={{ marginTop: 34, textAlign: "left" }}>
+          <h2 style={{ fontSize: 18, marginBottom: 10 }}>First-time setup (new device)</h2>
+          <ol style={{ marginTop: 0, color: "#444", lineHeight: 1.7 }}>
+            <li>Open the Telegram bot and tap <b>Start</b> (or type <b>/start</b>).</li>
+            <li>Follow the instructions to initialize your profile and connect the device.</li>
+            <li>When needed, generate a login code and then come back here to log in.</li>
+          </ol>
+
+          <h2 style={{ fontSize: 18, marginTop: 22, marginBottom: 10 }}>Already using CalmBand (login)</h2>
+          <ol style={{ marginTop: 0, color: "#444", lineHeight: 1.7 }}>
+            <li>In Telegram, type <b>/login</b> to receive a <b>6-digit code</b>.</li>
+            <li>Go to the Login page and enter the code.</li>
+          </ol>
+
+          <p style={{ marginTop: 18, color: "#555", lineHeight: 1.6 }}>
+            <b>Privacy note:</b> Each user can access only their own events. The login code is temporary and linked to your Telegram account.
+          </p>
+        </div>
       </div>
     </main>
   );
+}
+
 }

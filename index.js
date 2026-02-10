@@ -139,7 +139,7 @@ async function notifyQuestionnaireReady(telegramUserId, eventId) {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "Start questionnaire", callback_data: `start_q:${eventId}` }],
-                    [{ text: "Not now", callback_data: `dismiss_q:${eventId}` }],
+                    [{ text: "Skip questionnaire", callback_data: `dismiss_q:${eventId}` }],
                 ],
             },
         }

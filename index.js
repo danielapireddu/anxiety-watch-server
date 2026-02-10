@@ -112,7 +112,6 @@ const QUESTIONS = [
 // =====================
 async function notifyQuestionnaireReady(telegramUserId, eventId) {
     // 1) ensure session row
-    // Se hai UNIQUE(telegram_user_id, event_id) va bene
     await pool.query(
         `insert into questionnaire_sessions (telegram_user_id, event_id, step, status)
      values ($1, $2, 0, 'pending')
@@ -132,9 +131,9 @@ async function notifyQuestionnaireReady(telegramUserId, eventId) {
 
     const chatId = Number(u.rows[0].chat_id);
 
-    // 3) send message with inline buttons
+    // 3) send message with inline buttons (USE chatId!)
     await bot.telegram.sendMessage(
-        telegramUserId,
+        chatId,
         "CalmBand recorded an event. When you feel ready, you can start the short questionnaire.",
         {
             reply_markup: {
@@ -145,8 +144,10 @@ async function notifyQuestionnaireReady(telegramUserId, eventId) {
             },
         }
     );
+
     return { ok: true };
 }
+
 
 // =====================
 // BOT commands
@@ -235,19 +236,20 @@ bot.on("callback_query", async (ctx) => {
         if (data.startsWith("start_q:")) {
             const eventId = data.split(":")[1];
 
+            // set session in_progress and reset step
             await pool.query(
-                `insert into questionnaire_sessions (telegram_user_id, event_id, step, status)
-   values ($1, $2, 0, 'pending')
-   on conflict (telegram_user_id, event_id) do nothing`,
+                `update questionnaire_sessions
+     set status='in_progress', step=0, updated_at=now()
+     where telegram_user_id=$1 and event_id=$2`,
                 [telegramUserId, eventId]
             );
-
 
             await ctx.answerCbQuery("Starting…");
             await ctx.reply("Ok, let's start.");
             await ctx.reply(QUESTIONS[0].text);
             return;
         }
+
 
         if (data.startsWith("dismiss_q:")) {
             const eventId = data.split(":")[1];
@@ -459,7 +461,10 @@ app.post("/panic", async (req, res) => {
         const eventId = result.rows[0].id;
 
         // notify with inline buttons
-        const n = await notifyQuestionnaireReady(telegramUserId, eventId);
+        const n = await notifyQuestionnaireReady(telegramUserId, eventId).catch((e) => {
+            console.error("notifyQuestionnaireReady failed:", e);
+            return { ok: false, warning: "notify failed" };
+        });
 
         // always return ok (even if telegram can't message)
         if (!n.ok) {

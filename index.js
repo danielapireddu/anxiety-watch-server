@@ -236,11 +236,12 @@ bot.on("callback_query", async (ctx) => {
             const eventId = data.split(":")[1];
 
             await pool.query(
-                `update questionnaire_sessions
-         set status='in_progress', step=0, updated_at=now()
-         where telegram_user_id=$1 and event_id=$2`,
+                `insert into questionnaire_sessions (telegram_user_id, event_id, step, status)
+   values ($1, $2, 0, 'pending')
+   on conflict (telegram_user_id, event_id) do nothing`,
                 [telegramUserId, eventId]
             );
+
 
             await ctx.answerCbQuery("Starting…");
             await ctx.reply("Ok, let's start.");

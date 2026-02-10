@@ -534,13 +534,17 @@ app.post("/panic", async (req, res) => {
             event_id: eventId,
         });
 
-        // 4) manda messaggio automatico su Telegram
-        await bot.telegram.sendMessage(
-            chatId,
-            "⚠️ CalmBand detected a panic-related event.\n\n" +
-            "When you feel ready, please answer a few short questions.\n\n" +
-            QUESTIONS[0].text
-        );
+        try {
+            await bot.telegram.sendMessage(
+                chatId,
+                "⚠️ CalmBand detected a panic-related event.\n\n" +
+                "When you feel ready, please answer a few short questions.\n\n" +
+                QUESTIONS[0].text
+            );
+        } catch (err) {
+            console.error("Telegram sendMessage failed:", err);
+            // NON blocchiamo la risposta HTTP
+        }
 
         res.json({ ok: true, event_id: eventId });
     } catch (e) {

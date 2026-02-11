@@ -13,7 +13,7 @@ export default function HomePage() {
         >
             <div style={{ maxWidth: 980, margin: "0 auto" }}>
                 {/* Header */}
-                <div style={{ textAlign: "center", marginTop: 10 }}>
+                <div style={{ textAlign: "center", marginTop: 7 }}>
                     <h1 style={{ fontSize: 46, fontWeight: 850, marginBottom: 10 }}>
                         CalmBand
                     </h1>
@@ -101,7 +101,7 @@ export default function HomePage() {
                                 display: "inline-block",
                                 padding: "12px 14px",
                                 borderRadius: 12,
-                                border: "1px solid rgba(0,0,0,0.20)",
+                                border: "1px solid #111",
                                 textDecoration: "none",
                                 color: "#111",
                                 background: "white",

@@ -27,9 +27,8 @@ export default function HomePage() {
                             fontSize: 18,
                         }}
                     >
-                        Hello, we are <b>Daniela</b> and <b>Roberta</b>, Bioengineering students at the
-                        University of Genoa. CalmBand is our project for the course{" "}
-                        <b>Wearable Devices and Interaction</b>.
+                        Hello, we are <b>Daniela Pireddu</b> and <b>Roberta Fumarola</b>, Bioengineering students at the
+                        University of Genoa. <b>CalmBand</b> is our project for the course Wearable Devices and Internet of Healthcare Things.
                     </p>
                 </div>
 
@@ -46,25 +45,23 @@ export default function HomePage() {
                     }}
                 >
                     <p style={{ marginTop: 0 }}>
-                        Anxiety and panic episodes are difficult not only because of the event itself, but also
-                        because of the uncertainty that they may happen again.
+                        <b>CalmBand</b>  is a wearable device designed to provide early and discreet support during panic episodes.
                     </p>
 
                     <p>
-                        From a physiological point of view, these episodes are often associated with measurable
-                        changes such as increased heart rate, reduced heart rate variability, and fine tremor or
-                        altered motion patterns.
+                        Our idea is to combine an <b>objective</b>  component, consisting of continuous monitoring of increased heart rate,
+                        reduced HRV, and tremor, with a <b>subjective</b> component, collected through user questionnaires on
+                        perceived anxiety and symptoms.
                     </p>
 
                     <p>
-                        CalmBand does <b>not</b> provide a clinical diagnosis. Its goal is to recognize when the
-                        body is entering a physiological state compatible with anxiety/panic and to provide
-                        early, discreet support through gentle feedback and breathing guidance.
+                        By integrating physiological data and personal experience, CalmBand aims to detect early signs of panic and
+                        provide timely support. It does <b>not replace clinical diagnosis</b>, but enhances awareness and self-management.
                     </p>
 
                     <p style={{ marginBottom: 0 }}>
-                        This website is the digital companion of the device: here you can securely access your
-                        profile, view your recorded events, and review your questionnaire answers over time.
+                        This website is the <b>digital companion of the device</b>, where you can securely access your profile,
+                        view recorded events, and track your questionnaire responses over time.
                     </p>
                 </div>
 

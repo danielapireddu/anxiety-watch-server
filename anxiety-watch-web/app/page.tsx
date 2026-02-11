@@ -23,7 +23,7 @@ export default function HomePage() {
                             margin: "0 auto",
                             color: "#444",
                             lineHeight: 1.65,
-                            maxWidth: 780,
+                            maxWidth: 880,
                             fontSize: 18,
                         }}
                     >

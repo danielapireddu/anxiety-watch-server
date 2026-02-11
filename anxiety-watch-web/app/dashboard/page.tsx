@@ -201,8 +201,11 @@ export default function DashboardPage() {
 
                   <p style={{ textAlign: "center", maxWidth: 720, margin: "0 auto", lineHeight: 1.5 }}>
                       Click <b>Open</b> to access the full details of a single event and review all associated information.
+                  </p>
+                  <p style={{ textAlign: "center", maxWidth: 720, margin: "0 auto", lineHeight: 1.5 }}>
                       If an event does not correspond to a real panic episode, you can remove it safely using <b>Delete</b>.
                   </p>
+
 
                   <p style={{ marginTop: 10, fontSize: 13, color: "#666", textAlign: "center" }}>
                       Linked account: <b>{uid}</b>

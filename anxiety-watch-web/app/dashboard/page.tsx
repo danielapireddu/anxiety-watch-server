@@ -89,6 +89,35 @@ export default function DashboardPage() {
         setErr("Network error while loading events");
       }
     }
+      async function deleteEvent(id: string) {
+          if (!token) return;
+
+          const ok = confirm("Delete this event? This cannot be undone.");
+          if (!ok) return;
+
+          try {
+              const apiBase = process.env.NEXT_PUBLIC_API_URL;
+              if (!apiBase) {
+                  alert("NEXT_PUBLIC_API_URL is missing");
+                  return;
+              }
+
+              const r = await fetch(`${apiBase}/api/my/events/${id}`, {
+                  method: "DELETE",
+                  headers: { Authorization: `Bearer ${token}` },
+              });
+
+              const data = await r.json();
+              if (!data.ok) {
+                  alert(data.error || "Delete failed");
+                  return;
+              }
+
+              setEvents((prev) => prev.filter((x) => x.id !== id));
+          } catch {
+              alert("Network error");
+          }
+      }
 
     load();
   }, [token]);
@@ -176,70 +205,89 @@ export default function DashboardPage() {
         <p style={{ color: "#555" }}>No events found.</p>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginTop: 12 }}>
-          {events.map((ev) => (
-            <div
-              key={ev.id}
-              style={{
-                border: "1px solid rgba(0,0,0,0.12)",
-                borderRadius: 14,
-                padding: 14,
-                background: "white",
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <span style={chipStyle("#f2f2f2")}>{humanEventType(ev.event_type)}</span>
-                  <span style={chipStyle("#eef2ff")}>source: {humanDevice(ev.device_id)}</span>
-                  <span style={chipStyle(ev.has_device_data ? "#e9f7ef" : "#fdecea")}>
-                              Device data: {ev.has_device_data ? "✓" : "✗"}
-                  </span>
+                      {events.map((ev) => (
+                          <div
+                              key={ev.id}
+                              style={{
+                                  border: "1px solid rgba(0,0,0,0.12)",
+                                  borderRadius: 14,
+                                  padding: 14,
+                                  background: "white",
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  justifyContent: "space-between",
+                                  gap: 12,
+                              }}
+                          >
+                              {/* LEFT SIDE */}
+                              <div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                      <span style={chipStyle("#f2f2f2")}>
+                                          {humanEventType(ev.event_type)}
+                                      </span>
 
-                  <span style={chipStyle(ev.has_questionnaire ? "#e9f7ef" : "#fdecea")}>
-                              Questionnaire: {ev.has_questionnaire ? "✓" : "✗"}
-                  </span>
-  
-                </div>
+                                      <span style={chipStyle("#eef2ff")}>
+                                          source: {humanDevice(ev.device_id)}
+                                      </span>
 
-                <div
-                  style={{
-                    marginTop: 8,
-                    fontSize: 15,
-                    fontWeight: 700,
-                    color: "#111",
-                  }}
-                >
-                  Date & time:{" "}
-                  <span style={{ fontWeight: 500 }}>
-                    {formatDate(ev.created_at)}
-                  </span>
-                </div>
+                                      <span style={chipStyle(ev.has_device_data ? "#e9f7ef" : "#fdecea")}>
+                                          Device data: {ev.has_device_data ? "✓" : "✗"}
+                                      </span>
 
-                {/* Optional (small): event id */}
-                {/* <div style={{ marginTop: 6, fontSize: 11, color: "#888" }}>ID: {ev.id}</div> */}
-              </div>
+                                      <span style={chipStyle(ev.has_questionnaire ? "#e9f7ef" : "#fdecea")}>
+                                          Questionnaire: {ev.has_questionnaire ? "✓" : "✗"}
+                                      </span>
+                                  </div>
 
-              <Link
-                href={`/events/${ev.id}`}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #111",
-                  textDecoration: "none",
-                  color: "#111",
-                  whiteSpace: "nowrap",
-                  height: "fit-content",
-                }}
-              >
-                Open →
-              </Link>
-            </div>
-          ))}
-        </div>
-      )}
-    </main>
-  );
-}
+                                  <div
+                                      style={{
+                                          marginTop: 8,
+                                          fontSize: 15,
+                                          fontWeight: 700,
+                                          color: "#111",
+                                      }}
+                                  >
+                                      Date & time:{" "}
+                                      <span style={{ fontWeight: 500 }}>
+                                          {formatDate(ev.created_at)}
+                                      </span>
+                                  </div>
+                              </div>
+
+                              {/* RIGHT SIDE (Open + Delete) */}
+                              <div style={{ display: "flex", gap: 8 }}>
+                                  <Link
+                                      href={`/events/${ev.id}`}
+                                      style={{
+                                          padding: "8px 12px",
+                                          borderRadius: 10,
+                                          border: "1px solid #111",
+                                          textDecoration: "none",
+                                          color: "#111",
+                                          background: "white",
+                                          whiteSpace: "nowrap",
+                                          height: "fit-content",
+                                      }}
+                                  >
+                                      Open →
+                                  </Link>
+
+                                  <button
+                                      onClick={() => deleteEvent(ev.id)}
+                                      style={{
+                                          padding: "8px 12px",
+                                          borderRadius: 10,
+                                          border: "1px solid rgba(220,0,0,0.6)",
+                                          background: "white",
+                                          color: "crimson",
+                                          cursor: "pointer",
+                                          whiteSpace: "nowrap",
+                                          height: "fit-content",
+                                      }}
+                                  >
+                                      Delete
+                                  </button>
+                              </div>
+                          </div>
+                      ))}
+

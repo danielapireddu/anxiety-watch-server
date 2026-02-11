@@ -209,7 +209,8 @@ export default function EventDetailPage() {
             {/* Header */}
             <div style={{ marginTop: 8, textAlign: "center" }}>
                 <h1 style={{ fontSize: 46, fontWeight: 850, margin: 0 }}>CalmBand</h1>
-                <h2 style={{ marginTop: 10, marginBottom: 6, fontSize: 18, fontWeight: 700 }}>Event details</h2>
+
+                 <h2 style={{ textAlign: "center", color: "#444", marginBottom: 6, fontSize: 22 }}>Event details</h2>
                 <p style={{ margin: "0 auto", color: "#444", lineHeight: 1.5, maxWidth: 720 }}>
                     Here you can review the information related to a single event.
                 </p>

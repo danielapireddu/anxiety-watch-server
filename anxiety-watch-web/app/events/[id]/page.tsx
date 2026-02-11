@@ -211,8 +211,7 @@ export default function EventDetailPage() {
                 <h1 style={{ fontSize: 36, fontWeight: 800, margin: 0 }}>CalmBand</h1>
                 <h2 style={{ marginTop: 10, marginBottom: 6, fontSize: 18, fontWeight: 700 }}>Event details</h2>
                 <p style={{ margin: "0 auto", color: "#444", lineHeight: 1.5, maxWidth: 720 }}>
-                    Here you can review the information related to a single event, including (when available) the questionnaire
-                    answers.
+                    Here you can review the information related to a single event.
                 </p>
             </div>
 
@@ -246,7 +245,7 @@ export default function EventDetailPage() {
 
             {/* Payload collapsible */}
             <details style={{ marginTop: 14 }}>
-                <summary style={{ cursor: "pointer", color: "#111", fontWeight: 600 }}>Technical details (payload)</summary>
+                <summary style={{ cursor: "pointer", color: "#111", fontWeight: 600 }}>Device measurements</summary>
 
                 <div
                     style={{

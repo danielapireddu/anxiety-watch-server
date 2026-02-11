@@ -84,13 +84,13 @@ export default function HomePage() {
                         }}
                     >
                         <h2 style={{ fontSize: 18, marginTop: 0, marginBottom: 10 }}>
-                            First-time setup (new device)
+                            <b>First-time setup</b> (new device)
                         </h2>
 
                         <p style={{ marginTop: 0, marginBottom: 12, color: "#333", lineHeight: 1.65 }}>
-                            Open our Telegram bot and tap <b>Start</b> (or type <b>/start</b>). Follow the
-                            instructions to initialize your profile and connect the device. When you need access
-                            to the website, generate a login code and then come back here.
+                            Open our Telegram bot and type <b>/start</b> to initialize your profile.
+                            Once your profile is created, you can return to this page anytime to login and access the website.
+
                         </p>
 
                         <a
@@ -122,12 +122,13 @@ export default function HomePage() {
                         }}
                     >
                         <h2 style={{ fontSize: 18, marginTop: 0, marginBottom: 10 }}>
-                            Already using CalmBand (login)
+                            <b>Already using CalmBand</b> (login)
                         </h2>
 
                         <p style={{ marginTop: 0, marginBottom: 12, color: "#333", lineHeight: 1.65 }}>
-                            In Telegram, type <b>/login</b> to receive a <b>6-digit code</b>. Then open the Login
-                            page and enter the code to access your events and responses.
+                            Open our Telegram bot and type <b>/login</b> to receive a 6-digit code.
+                            Then open the login page and enter the code to access your events.
+
                         </p>
 
                         <Link

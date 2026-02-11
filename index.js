@@ -134,7 +134,8 @@ async function notifyQuestionnaireReady(telegramUserId, eventId) {
     // 3) send message with inline buttons (USE chatId!)
     await bot.telegram.sendMessage(
         chatId,
-        "CalmBand recorded an event. When you feel ready, you can start the short questionnaire.",
+        "CalmBand detected a possible anxiety episode.\n\nWhen you are ready, you can start a short questionnaire to record context and symptoms."
+,
         {
             reply_markup: {
                 inline_keyboard: [
@@ -155,10 +156,28 @@ async function notifyQuestionnaireReady(telegramUserId, eventId) {
 bot.start(async (ctx) => {
     try {
         await upsertTelegramUserFromCtx(ctx);
-        await ctx.reply("Hi! ✅ CalmBand bot is connected.");
+        await ctx.reply("CalmBand bot is active.\n\n" +
+            "Use /login to generate a login code for the website.\n" +
+            "Use /myid to view your Telegram user ID (needed for device linking).\n");
     } catch (e) {
         console.error("START error:", e);
         await ctx.reply("Technical error during registration.");
+    }
+});
+
+bot.command("myid", async (ctx) => {
+    try {
+        await upsertTelegramUserFromCtx(ctx);
+
+        const telegramUserId = Number(ctx.from?.id);
+        if (!telegramUserId) return;
+
+        await ctx.reply(
+            `Your Telegram user ID is:\n${telegramUserId}\n\nUse this ID to link your CalmBand setup (Bluetooth bridge / website login).`
+        );
+    } catch (e) {
+        console.error("MYID command error:", e);
+        await ctx.reply("Technical error: unable to retrieve your user ID right now.");
     }
 });
 
@@ -183,7 +202,9 @@ bot.command("login", async (ctx) => {
         );
 
         await ctx.reply(
-            `Your login code: ${code}\nValid for ${expiresMinutes} minutes.\nGo to the website and enter it.`
+            `Your login code is: ${code}\n` +
+            `It is valid for ${expiresMinutes} minutes.\n\n` +
+            `Open the CalmBand website and enter this code to sign in.`
         );
     } catch (e) {
         console.error("LOGIN command error:", e);
@@ -245,7 +266,7 @@ bot.on("callback_query", async (ctx) => {
             );
 
             await ctx.answerCbQuery("Starting…");
-            await ctx.reply("Ok, let's start.");
+            await ctx.reply("Questionnaire started. Please answer the following questions.");
             await ctx.reply(QUESTIONS[0].text);
             return;
         }
@@ -262,7 +283,8 @@ bot.on("callback_query", async (ctx) => {
             );
 
             await ctx.answerCbQuery("Ok.");
-            await ctx.reply("No problem. You can start later from the website or when you receive a new event.");
+            await ctx.reply("Understood. You can choose not to complete the questionnaire.\n\n" +
+                "If this was not a real panic episode, you can delete the event from the CalmBand website.");
             return;
         }
     } catch (e) {

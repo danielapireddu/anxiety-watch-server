@@ -60,7 +60,7 @@ export default function LoginPage() {
     >
       <div style={{ width: "100%", maxWidth: 520, textAlign: "center" }}>
         <h1 style={{ fontSize: 46, fontWeight: 850, margin: 0 }}>CalmBand</h1>
-        <h2 style={{ fontSize: 18, fontWeight: 600, marginTop: 10, marginBottom: 18, color: "#333" }}>
+        <h2 style={{ fontSize: 22, fontWeight: 600, marginTop: 10, marginBottom: 18, color: "#333" }}>
           Login page
         </h2>
 

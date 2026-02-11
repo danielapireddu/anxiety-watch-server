@@ -460,6 +460,56 @@ app.get("/api/my/events/:id", requireAuth, async (req, res) => {
         return res.status(500).json({ ok: false, error: "Server error" });
     }
 });
+// =====================
+// API: delete my event (web)
+// =====================
+app.delete("/api/my/events/:id", requireAuth, async (req, res) => {
+    const telegramUserId = req.user.telegram_user_id;
+    const eventId = req.params.id;
+
+    const client = await pool.connect();
+    try {
+        await client.query("begin");
+
+        // 1) delete questionnaire answers (if any)
+        await client.query(
+            `delete from responses
+       where event_id = $1 and telegram_user_id = $2`,
+            [eventId, telegramUserId]
+        );
+
+        // 2) delete questionnaire session (if any)
+        await client.query(
+            `delete from questionnaire_sessions
+       where event_id = $1 and telegram_user_id = $2`,
+            [eventId, telegramUserId]
+        );
+
+        // 3) delete the event (only if it belongs to this user)
+        const r = await client.query(
+            `delete from events
+       where id = $1 and telegram_user_id = $2
+       returning id`,
+            [eventId, telegramUserId]
+        );
+
+        await client.query("commit");
+
+        if (r.rowCount === 0) {
+            return res.status(404).json({ ok: false, error: "Event not found (or not yours)" });
+        }
+
+        return res.json({ ok: true, deleted_id: r.rows[0].id });
+    } catch (e) {
+        await client.query("rollback");
+        console.error("DELETE EVENT error:", e);
+        return res.status(500).json({ ok: false, error: "Server error" });
+    } finally {
+        client.release();
+    }
+});
+
+
 
 // =====================
 // API: Panic (Arduino -> server)

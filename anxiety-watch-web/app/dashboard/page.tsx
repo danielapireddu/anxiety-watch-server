@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 type EventRow = {
-  id: string;
-  created_at: string;
-  event_type: string;
-  device_id: string;
+    id: string;
+    created_at: string;
+    event_type: string;
+    device_id: string;
     payload: any;
     has_questionnaire?: boolean;
     has_device_data?: boolean;
@@ -194,10 +194,14 @@ export default function DashboardPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <span style={chipStyle("#f2f2f2")}>{humanEventType(ev.event_type)}</span>
                   <span style={chipStyle("#eef2ff")}>source: {humanDevice(ev.device_id)}</span>
-                  <span style={chipStyle(event.has_device_data ? "#e9f7ef" : "#fdecea")}>Device data: {event.has_device_data ? "✓" : "✗"}</span>
+                  <span style={chipStyle(ev.has_device_data ? "#e9f7ef" : "#fdecea")}>
+                              Device data: {ev.has_device_data ? "✓" : "✗"}
+                  </span>
 
-                  <span style={chipStyle(event.has_questionnaire ? "#e9f7ef" : "#fdecea")}> Questionnaire: {event.has_questionnaire ? "✓" : "✗"}</span>
-
+                  <span style={chipStyle(ev.has_questionnaire ? "#e9f7ef" : "#fdecea")}>
+                              Questionnaire: {ev.has_questionnaire ? "✓" : "✗"}
+                  </span>
+  
                 </div>
 
                 <div

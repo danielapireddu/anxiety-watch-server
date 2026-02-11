@@ -353,8 +353,11 @@ bot.on("text", async (ctx) => {
          where id=$1`,
                 [session.id, nextStep]
             );
-            await ctx.reply("Thank you. Questionnaire completed..\n\n` +
-                            "Acknowledging what happened is part of the recovery process.");
+            await ctx.reply(
+                "Thank you. Questionnaire completed.\n\n" +
+                "Acknowledging what happened is part of the recovery process."
+            );
+
             return;
         }
 

@@ -390,39 +390,37 @@ app.get("/api/my/events", requireAuth, async (req, res) => {
         const telegramUserId = req.user.telegram_user_id;
 
         const r = await pool.query(
-            const r = await pool.query(
-                `
-  select
-    e.id,
-    e.created_at,
-    e.event_type,
-    e.device_id,
-    e.payload,
+            `
+      select
+        e.id,
+        e.created_at,
+        e.event_type,
+        e.device_id,
+        e.payload,
 
-    -- true se ci sono risposte questionario per quell'evento
-    exists (
-      select 1
-      from responses r
-      where r.event_id = e.id
-        and r.telegram_user_id = e.telegram_user_id
-    ) as has_questionnaire,
+        -- true se ci sono risposte questionario per quell'evento
+        exists (
+          select 1
+          from responses r
+          where r.event_id = e.id
+            and r.telegram_user_id = e.telegram_user_id
+        ) as has_questionnaire,
 
-    -- true se nel payload ci sono i campi "device"
-    (
-      (coalesce(e.payload::jsonb, '{}'::jsonb) ? 'avg_bpm') or
-      (coalesce(e.payload::jsonb, '{}'::jsonb) ? 'avg_hrv') or
-      (coalesce(e.payload::jsonb, '{}'::jsonb) ? 'movement_score') or
-      (coalesce(e.payload::jsonb, '{}'::jsonb) ? 'tremor_score')
-    ) as has_device_data
+        -- true se nel payload ci sono i campi device
+        (
+          (coalesce(e.payload::jsonb, '{}'::jsonb) ? 'avg_bpm') or
+          (coalesce(e.payload::jsonb, '{}'::jsonb) ? 'avg_hrv') or
+          (coalesce(e.payload::jsonb, '{}'::jsonb) ? 'movement_score') or
+          (coalesce(e.payload::jsonb, '{}'::jsonb) ? 'tremor_score')
+        ) as has_device_data
 
-  from events e
-  where e.telegram_user_id = $1
-  order by e.created_at desc
-  limit 200
-  `,
-                [telegramUserId]
-            );
-
+      from events e
+      where e.telegram_user_id = $1
+      order by e.created_at desc
+      limit 200
+      `,
+            [telegramUserId]
+        );
 
         return res.json({ ok: true, events: r.rows });
     } catch (e) {
@@ -430,6 +428,7 @@ app.get("/api/my/events", requireAuth, async (req, res) => {
         return res.status(500).json({ ok: false, error: "Server error" });
     }
 });
+
 
 app.get("/api/my/events/:id", requireAuth, async (req, res) => {
     try {

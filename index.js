@@ -441,7 +441,21 @@ app.get("/api/my/events/:id", requireAuth, async (req, res) => {
 // Creates event + notifies user with button
 // =====================
 app.post("/panic", async (req, res) => {
-    const { telegram_user_id, hr, vibration } = req.body;
+    const {
+        telegram_user_id,
+
+        // nuovi campi
+        avg_bpm,
+        avg_hrv,
+        movement_score,
+        tremor_score,
+
+        // fallback vecchi nomi (se arrivassero)
+        hr,
+        vibration,
+
+        source,
+    } = req.body;
 
     if (!telegram_user_id) {
         return res.status(400).json({ ok: false, error: "Missing telegram_user_id" });
@@ -449,24 +463,29 @@ app.post("/panic", async (req, res) => {
 
     const telegramUserId = Number(telegram_user_id);
 
+    // normalizzazione: usa i nuovi se ci sono, altrimenti fallback
+    const payload = {
+        source: source || "arduino",
+        avg_bpm: avg_bpm ?? hr ?? null,
+        avg_hrv: avg_hrv ?? null,
+        movement_score: movement_score ?? null,
+        tremor_score: tremor_score ?? vibration ?? null,
+    };
+
     try {
-        // create event
+        // 1) salva evento
         const result = await pool.query(
             `insert into events (device_id, event_type, payload, telegram_user_id)
        values ($1, $2, $3, $4)
        returning id`,
-            ["calmband", "panic_detected", { hr, vibration, source: "arduino" }, telegramUserId]
+            ["calmband", "panic_detected", payload, telegramUserId]
         );
 
         const eventId = result.rows[0].id;
 
-        // notify with inline buttons
-        const n = await notifyQuestionnaireReady(telegramUserId, eventId).catch((e) => {
-            console.error("notifyQuestionnaireReady failed:", e);
-            return { ok: false, warning: "notify failed" };
-        });
+        // 2) invia telegram (come già fai tu)
+        const n = await notifyQuestionnaireReady(telegramUserId, eventId);
 
-        // always return ok (even if telegram can't message)
         if (!n.ok) {
             return res.json({ ok: true, event_id: eventId, warning: n.warning });
         }
@@ -477,6 +496,7 @@ app.post("/panic", async (req, res) => {
         return res.status(500).json({ ok: false, error: "Server error" });
     }
 });
+
 
 // =====================
 // Webhook endpoint (Telegram calls this)

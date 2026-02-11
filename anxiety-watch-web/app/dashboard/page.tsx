@@ -192,6 +192,10 @@ export default function DashboardPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <span style={chipStyle("#f2f2f2")}>{humanEventType(ev.event_type)}</span>
                   <span style={chipStyle("#eef2ff")}>source: {humanDevice(ev.device_id)}</span>
+                  <span style={chipStyle(event.has_device_data ? "#e9f7ef" : "#fdecea")}>Device data: {event.has_device_data ? "✓" : "✗"}</span>
+
+                  <span style={chipStyle(event.has_questionnaire ? "#e9f7ef" : "#fdecea")}> Questionnaire: {event.has_questionnaire ? "✓" : "✗"}</span>
+
                 </div>
 
                 <div

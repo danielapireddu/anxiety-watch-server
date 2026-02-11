@@ -213,7 +213,7 @@ bot.command("login", async (ctx) => {
 });
 
 // Manual questionnaire trigger (optional)
-bot.command("questionario", async (ctx) => {
+bot.command("questionnaire", async (ctx) => {
     try {
         await upsertTelegramUserFromCtx(ctx);
 
@@ -233,9 +233,10 @@ bot.command("questionario", async (ctx) => {
         // send the "ready" message with button
         const n = await notifyQuestionnaireReady(telegramUserId, eventId);
         if (!n.ok) {
-            await ctx.reply("I created the event, but I cannot message you yet. Please send /start again.");
+            await ctx.reply("The event was recorded, but I cannot send you the questionnaire yet.\n" +
+                "Please send /start to activate the chat, then try again.");
         } else {
-            await ctx.reply("Event created ✅ Check the message above to start the questionnaire.");
+            await ctx.reply("The event was recorded. Use the buttons in the message above to start the questionnaire.");
         }
     } catch (e) {
         console.error("QUESTIONARIO error:", e);
@@ -332,7 +333,7 @@ bot.on("text", async (ctx) => {
                 `update questionnaire_sessions set status='done', updated_at=now() where id=$1`,
                 [session.id]
             );
-            await ctx.reply("Questionnaire completed ✅");
+            await ctx.reply("Questionnaire completed");
             return;
         }
 
@@ -352,7 +353,8 @@ bot.on("text", async (ctx) => {
          where id=$1`,
                 [session.id, nextStep]
             );
-            await ctx.reply("Thank you. Questionnaire completed ✅");
+            await ctx.reply("Thank you. Questionnaire completed..\n\n` +
+                            "Acknowledging what happened is part of the recovery process.");
             return;
         }
 

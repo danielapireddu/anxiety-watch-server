@@ -106,6 +106,7 @@ export default function HomePage() {
                                 color: "#111",
                                 background: "white",
                                 fontWeight: 650,
+                                fontFamily: "system-ui",
                             }}
                         >
                             Open Telegram Bot ↗
@@ -142,6 +143,7 @@ export default function HomePage() {
                                 color: "#111",
                                 background: "white",
                                 fontWeight: 650,
+                                fontFamily: "system-ui",
                             }}
                         >
                             Go to Login →

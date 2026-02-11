@@ -51,7 +51,41 @@ export default function DashboardPage() {
   const [uid, setUid] = useState<string | null>(null);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+    const [err, setErr] = useState<string | null>(null);
+    async function deleteEvent(eventId: string) {
+        if (!token) return;
+
+        const ok = window.confirm("Delete this event? This cannot be undone.");
+        if (!ok) return;
+
+        try {
+            setErr(null);
+
+            const apiBase = process.env.NEXT_PUBLIC_API_URL;
+            if (!apiBase) {
+                setErr("NEXT_PUBLIC_API_URL is missing");
+                return;
+            }
+
+            const r = await fetch(`${apiBase}/api/my/events/${encodeURIComponent(eventId)}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            const data = await r.json();
+
+            if (!data.ok) {
+                setErr(data.error || "Error while deleting event");
+                return;
+            }
+
+            // aggiorna subito la UI
+            setEvents((prev) => prev.filter((e) => e.id !== eventId));
+        } catch {
+            setErr("Network error while deleting event");
+        }
+    }
+
 
   useEffect(() => {
     const t = localStorage.getItem("token");

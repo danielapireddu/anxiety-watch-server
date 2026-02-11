@@ -7,7 +7,7 @@ export default function HomePage() {
         <main
             style={{
                 minHeight: "100vh",
-                padding: "48px 24px",
+                padding: "16px 24px",
                 fontFamily: "system-ui",
             }}
         >

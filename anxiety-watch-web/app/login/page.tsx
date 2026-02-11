@@ -53,13 +53,13 @@ export default function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 24,
+        padding: 16,
         fontFamily: "system-ui",
         background: "white",
       }}
     >
       <div style={{ width: "100%", maxWidth: 520, textAlign: "center" }}>
-        <h1 style={{ fontSize: 40, fontWeight: 700, margin: 0 }}>CalmBand</h1>
+        <h1 style={{ fontSize: 46, fontWeight: 850, margin: 0 }}>CalmBand</h1>
         <h2 style={{ fontSize: 18, fontWeight: 600, marginTop: 10, marginBottom: 18, color: "#333" }}>
           Login page
         </h2>
@@ -79,7 +79,7 @@ export default function LoginPage() {
             background: "white",
           }}
         >
-          <div style={{ fontSize: 14, color: "#222", lineHeight: 1.6 }}>
+          <div style={{ fontSize: 16, color: "#222", lineHeight: 1.6 }}>
             <div style={{ marginBottom: 6 }}>
               <b>Step 1.</b> Open Telegram, go to the bot, and type <b>/login</b>
             </div>

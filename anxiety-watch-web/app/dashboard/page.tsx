@@ -182,8 +182,8 @@ export default function DashboardPage() {
         <div style={{ width: "100%" }}>
           <h1
             style={{
-              fontSize: 36,
-              fontWeight: 800,
+              fontSize: 46,
+              fontWeight: 850,
               textAlign: "center",
               marginBottom: 10,
               width: "100%",
@@ -193,9 +193,19 @@ export default function DashboardPage() {
           </h1>
 
           <p style={{ margin: "0 auto", color: "#444", lineHeight: 1.5, maxWidth: 720, textAlign: "center" }}>
-            Welcome to your dashboard. Here you can find the history of events where the system detected an anxiety state
-            (or a related episode) and, when available, the questionnaire answers.
+               Welcome to your dashboard!
           </p>
+
+          <p>
+               Here you can review the history of detected anxiety events, including the physiological data recorded
+               by the device and the related questionnaire responses.
+          </p>
+
+          <p>
+                      Click <b>Open</b> to access the full details of a single event and review all associated information.
+                      If an event does not correspond to a real panic episode, you can remove it safely using <b>Delete</b>.
+
+          </p>       
 
           <p style={{ marginTop: 10, marginBottom: 0, color: "#666", fontSize: 13, textAlign: "center" }}>
             Linked account: <b>{uid}</b>

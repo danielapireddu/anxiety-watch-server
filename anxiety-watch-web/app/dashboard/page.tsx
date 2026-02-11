@@ -191,7 +191,7 @@ export default function DashboardPage() {
             CalmBand
           </h1>
 
-                  <p style={{ textAlign: "center", color: "#444", marginBottom: 6 }}>
+                  <p style={{ textAlign: "center", color: "#444", marginBottom: 6, fontSize:22  }}>
                Welcome to your dashboard!
           </p>
                   <p style={{ textAlign: "center", maxWidth: 720, margin: "0 auto", lineHeight: 1.5 }}>

@@ -177,52 +177,51 @@ export default function DashboardPage() {
   }
 
   return (
-    <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 900, margin: "0 auto" }}>
+      <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 900, margin: "0 auto", position: "relative" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ width: "100%" }}>
           <h1
             style={{
-              fontSize: 46,
-              fontWeight: 850,
-              textAlign: "center",
-              marginBottom: 10,
-              width: "100%",
+                          fontSize: 46,
+                          fontWeight: 850,
+                          textAlign: "center",
+                          marginBottom: 10,
             }}
           >
             CalmBand
           </h1>
 
-          <p style={{ margin: "0 auto", color: "#444", lineHeight: 1.5, maxWidth: 720, textAlign: "center" }}>
+                  <p style={{ textAlign: "center", color: "#444", marginBottom: 6 }}>
                Welcome to your dashboard!
           </p>
+                  <p style={{ textAlign: "center", maxWidth: 720, margin: "0 auto", lineHeight: 1.5 }}>
+                      Here you can review the history of detected anxiety events, including the physiological data recorded
+                      by the device and the related questionnaire responses.
+                  </p>
 
-          <p>
-               Here you can review the history of detected anxiety events, including the physiological data recorded
-               by the device and the related questionnaire responses.
-          </p>
-
-          <p>
+                  <p style={{ textAlign: "center", maxWidth: 720, margin: "0 auto", lineHeight: 1.5 }}>
                       Click <b>Open</b> to access the full details of a single event and review all associated information.
                       If an event does not correspond to a real panic episode, you can remove it safely using <b>Delete</b>.
+                  </p>
 
-          </p>       
-
-          <p style={{ marginTop: 10, marginBottom: 0, color: "#666", fontSize: 13, textAlign: "center" }}>
-            Linked account: <b>{uid}</b>
-          </p>
-        </div>
+                  <p style={{ marginTop: 10, fontSize: 13, color: "#666", textAlign: "center" }}>
+                      Linked account: <b>{uid}</b>
+                  </p>
+              </div>
 
         <Link
           href="/login"
           style={{
-            padding: "10px 14px",
-            borderRadius: 12,
-            border: "1px solid rgba(0,0,0,0.2)",
-            textDecoration: "none",
-            color: "#111",
-            background: "white",
-            whiteSpace: "nowrap",
-            height: "fit-content",
+              position: "absolute",
+              top: 24,
+              right: 24,
+              padding: "10px 14px",
+              borderRadius: 12,
+              border: "1px solid rgba(0,0,0,0.2)",
+              textDecoration: "none",
+              color: "#111",
+              background: "white",
+              whiteSpace: "nowrap",
           }}
         >
           Switch account

@@ -8,7 +8,9 @@ type EventRow = {
   created_at: string;
   event_type: string;
   device_id: string;
-  payload: any;
+    payload: any;
+    has_questionnaire?: boolean;
+    has_device_data?: boolean;
 };
 
 function formatDate(iso: string) {
@@ -82,7 +84,7 @@ export default function DashboardPage() {
           return;
         }
 
-        setEvents(data.events || []);
+        setEvents((data.events || []) as EventRow[]);;
       } catch {
         setErr("Network error while loading events");
       }
